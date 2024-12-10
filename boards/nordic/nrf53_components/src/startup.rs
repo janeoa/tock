@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Component for starting up nrf52 platforms.
+//! Component for starting up nrf53 platforms.
 //! Contains 3 components, NrfStartupComponent, NrfClockComponent,
 //! and UartChannelComponent, as well as two helper structs for
 //! intializing Uart on Nordic boards.
@@ -10,15 +10,15 @@
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use nrf52::gpio::Pin;
-use nrf52::uicr::Regulator0Output;
+use nrf53::gpio::Pin;
+use nrf53::uicr::Regulator0Output;
 use segger::rtt::SeggerRtt;
 
 pub struct NrfStartupComponent<'a> {
     nfc_as_gpios: bool,
     button_rst_pin: Pin,
     reg_vout: Regulator0Output,
-    nvmc: &'a nrf52::nvmc::Nvmc,
+    nvmc: &'a nrf53::nvmc::Nvmc,
 }
 
 impl<'a> NrfStartupComponent<'a> {
@@ -26,7 +26,7 @@ impl<'a> NrfStartupComponent<'a> {
         nfc_as_gpios: bool,
         button_rst_pin: Pin,
         reg_vout: Regulator0Output,
-        nvmc: &'a nrf52::nvmc::Nvmc,
+        nvmc: &'a nrf53::nvmc::Nvmc,
     ) -> Self {
         Self {
             nfc_as_gpios,
@@ -43,13 +43,13 @@ impl<'a> Component for NrfStartupComponent<'a> {
     fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         // Disable APPROTECT in software. This is required as of newer nRF52
         // hardware revisions. See
-        // https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf52-series-improved-approtect.
+        // https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf53-series-improved-approtect.
         // If run on older HW revisions this function will do nothing.
-        let approtect = nrf52::approtect::Approtect::new();
+        let approtect = nrf53::approtect::Approtect::new();
         approtect.sw_disable_approtect();
 
         // Make non-volatile memory writable and activate the reset button
-        let uicr = nrf52::uicr::Uicr::new();
+        let uicr = nrf53::uicr::Uicr::new();
 
         // Check if we need to erase UICR memory to re-program it
         // This only needs to be done when a bit needs to be flipped from 0 to 1.
@@ -122,18 +122,18 @@ impl<'a> Component for NrfStartupComponent<'a> {
         // Any modification of UICR needs a soft reset for the changes to be taken into account.
         if needs_soft_reset {
             unsafe {
-                cortexm4::scb::reset();
+                cortexm33::scb::reset();
             }
         }
     }
 }
 
 pub struct NrfClockComponent<'a> {
-    clock: &'a nrf52::clock::Clock,
+    clock: &'a nrf53::clock::Clock,
 }
 
 impl<'a> NrfClockComponent<'a> {
-    pub fn new(clock: &'a nrf52::clock::Clock) -> Self {
+    pub fn new(clock: &'a nrf53::clock::Clock) -> Self {
         Self { clock }
     }
 }
@@ -148,7 +148,7 @@ impl<'a> Component for NrfClockComponent<'a> {
         self.clock.high_stop();
 
         self.clock
-            .low_set_source(nrf52::clock::LowClockSource::XTAL);
+            .low_set_source(nrf53::clock::LowClockSource::XTAL);
         self.clock.low_start();
         self.clock.high_start();
         while !self.clock.low_started() {}
@@ -187,15 +187,15 @@ pub enum UartChannel<'a> {
 
 pub struct UartChannelComponent {
     uart_channel: UartChannel<'static>,
-    mux_alarm: &'static MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-    uarte0: &'static nrf52::uart::Uarte<'static>,
+    mux_alarm: &'static MuxAlarm<'static, nrf53::rtc::Rtc<'static>>,
+    uarte0: &'static nrf53::uart::Uarte<'static>,
 }
 
 impl UartChannelComponent {
     pub fn new(
         uart_channel: UartChannel<'static>,
-        mux_alarm: &'static MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-        uarte0: &'static nrf52::uart::Uarte<'static>,
+        mux_alarm: &'static MuxAlarm<'static, nrf53::rtc::Rtc<'static>>,
+        uarte0: &'static nrf53::uart::Uarte<'static>,
     ) -> Self {
         Self {
             uart_channel,
@@ -207,9 +207,9 @@ impl UartChannelComponent {
 
 impl Component for UartChannelComponent {
     type StaticInput = (
-        &'static mut MaybeUninit<VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>>,
+        &'static mut MaybeUninit<VirtualMuxAlarm<'static, nrf53::rtc::Rtc<'static>>>,
         &'static mut MaybeUninit<
-            SeggerRtt<'static, VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>>,
+            SeggerRtt<'static, VirtualMuxAlarm<'static, nrf53::rtc::Rtc<'static>>>,
         >,
     );
     type Output = &'static dyn kernel::hil::uart::Uart<'static>;
@@ -219,10 +219,10 @@ impl Component for UartChannelComponent {
             UartChannel::Pins(uart_pins) => {
                 unsafe {
                     self.uarte0.initialize(
-                        nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),
-                        nrf52::pinmux::Pinmux::new(uart_pins.rxd as u32),
-                        uart_pins.cts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
-                        uart_pins.rts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
+                        nrf53::pinmux::Pinmux::new(uart_pins.txd as u32),
+                        nrf53::pinmux::Pinmux::new(uart_pins.rxd as u32),
+                        uart_pins.cts.map(|x| nrf53::pinmux::Pinmux::new(x as u32)),
+                        uart_pins.rts.map(|x| nrf53::pinmux::Pinmux::new(x as u32)),
                     )
                 };
                 self.uarte0

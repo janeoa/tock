@@ -15,7 +15,7 @@ use core::ptr::addr_of_mut;
 use kernel::debug;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::{capabilities, create_capability};
-use nrf52840dk_lib::{self, PROCESSES};
+use nrf5340dk_lib::{self, PROCESSES};
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
@@ -23,9 +23,9 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
 struct Platform {
-    base: nrf52840dk_lib::Platform,
-    eui64_driver: &'static nrf52840dk_lib::Eui64Driver,
-    ieee802154_driver: &'static nrf52840dk_lib::Ieee802154Driver,
+    base: nrf5340dk_lib::Platform,
+    eui64_driver: &'static nrf5340dk_lib::Eui64Driver,
+    ieee802154_driver: &'static nrf5340dk_lib::Ieee802154Driver,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
 }
 
@@ -43,17 +43,17 @@ impl SyscallDriverLookup for Platform {
     }
 }
 
-type Chip = nrf52840dk_lib::Chip;
+type Chip = nrf5340dk_lib::Chip;
 
 impl KernelResources<Chip> for Platform {
     type SyscallDriverLookup = Self;
-    type SyscallFilter = <nrf52840dk_lib::Platform as KernelResources<Chip>>::SyscallFilter;
-    type ProcessFault = <nrf52840dk_lib::Platform as KernelResources<Chip>>::ProcessFault;
-    type Scheduler = <nrf52840dk_lib::Platform as KernelResources<Chip>>::Scheduler;
-    type SchedulerTimer = <nrf52840dk_lib::Platform as KernelResources<Chip>>::SchedulerTimer;
-    type WatchDog = <nrf52840dk_lib::Platform as KernelResources<Chip>>::WatchDog;
+    type SyscallFilter = <nrf5340dk_lib::Platform as KernelResources<Chip>>::SyscallFilter;
+    type ProcessFault = <nrf5340dk_lib::Platform as KernelResources<Chip>>::ProcessFault;
+    type Scheduler = <nrf5340dk_lib::Platform as KernelResources<Chip>>::Scheduler;
+    type SchedulerTimer = <nrf5340dk_lib::Platform as KernelResources<Chip>>::SchedulerTimer;
+    type WatchDog = <nrf5340dk_lib::Platform as KernelResources<Chip>>::WatchDog;
     type ContextSwitchCallback =
-        <nrf52840dk_lib::Platform as KernelResources<Chip>>::ContextSwitchCallback;
+        <nrf5340dk_lib::Platform as KernelResources<Chip>>::ContextSwitchCallback;
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -82,14 +82,14 @@ impl KernelResources<Chip> for Platform {
 #[no_mangle]
 pub unsafe fn main() {
     let (board_kernel, base_platform, chip, default_peripherals, mux_alarm) =
-        nrf52840dk_lib::start();
+        nrf5340dk_lib::start();
 
     //--------------------------------------------------------------------------
     // IEEE 802.15.4 and UDP
     //--------------------------------------------------------------------------
 
     let (eui64_driver, ieee802154_driver, udp_driver) =
-        nrf52840dk_lib::ieee802154_udp(board_kernel, default_peripherals, mux_alarm);
+        nrf5340dk_lib::ieee802154_udp(board_kernel, default_peripherals, mux_alarm);
 
     let platform = Platform {
         base: base_platform,

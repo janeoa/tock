@@ -85,7 +85,7 @@ use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf5340::gpio::Pin;
-use nrf5340::interrupt_service::Nrf52840DefaultPeripherals;
+use nrf5340::interrupt_service::Nrf5340DefaultPeripherals;
 use nrf53_components::{UartChannel, UartPins};
 
 // The nRF52840DK LEDs (see back of board)
@@ -135,7 +135,7 @@ pub mod io;
 const USB_DEBUGGING: bool = false;
 
 /// This platform's chip type:
-pub type Chip = nrf5340::chip::NRF53<'static, Nrf52840DefaultPeripherals<'static>>;
+pub type Chip = nrf5340::chip::NRF53<'static, Nrf5340DefaultPeripherals<'static>>;
 
 /// Number of concurrent processes this platform supports.
 pub const NUM_PROCS: usize = 8;
@@ -144,7 +144,7 @@ pub const NUM_PROCS: usize = 8;
 pub static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
     [None; NUM_PROCS];
 
-static mut CHIP: Option<&'static nrf5340::chip::NRF53<Nrf52840DefaultPeripherals>> = None;
+static mut CHIP: Option<&'static nrf5340::chip::NRF53<Nrf5340DefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
 
@@ -305,7 +305,7 @@ impl KernelResources<Chip> for Platform {
 /// Create the capsules needed for the in-kernel UDP and 15.4 stack.
 pub unsafe fn ieee802154_udp(
     board_kernel: &'static kernel::Kernel,
-    nrf5340_peripherals: &'static Nrf52840DefaultPeripherals<'static>,
+    nrf5340_peripherals: &'static Nrf5340DefaultPeripherals<'static>,
     mux_alarm: &'static MuxAlarm<nrf5340::rtc::Rtc>,
 ) -> (
     &'static Eui64Driver,
@@ -317,7 +317,7 @@ pub unsafe fn ieee802154_udp(
     //--------------------------------------------------------------------------
 
     let aes_mux =
-        components::ieee802154::MuxAes128ccmComponent::new(&nrf5340_peripherals.nrf52.ecb)
+        components::ieee802154::MuxAes128ccmComponent::new(&nrf5340_peripherals.nrf53.ecb)
             .finalize(components::mux_aes128ccm_component_static!(
                 nrf5340::aes::AesECB
             ));
@@ -400,7 +400,7 @@ pub unsafe fn start() -> (
     &'static kernel::Kernel,
     Platform,
     &'static Chip,
-    &'static Nrf52840DefaultPeripherals<'static>,
+    &'static Nrf5340DefaultPeripherals<'static>,
     &'static MuxAlarm<'static, nrf5340::rtc::Rtc<'static>>,
 ) {
     //--------------------------------------------------------------------------
@@ -418,13 +418,13 @@ pub unsafe fn start() -> (
     );
     // Initialize chip peripheral drivers
     let nrf5340_peripherals = static_init!(
-        Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf)
+        Nrf5340DefaultPeripherals,
+        Nrf5340DefaultPeripherals::new(ieee802154_ack_buf)
     );
 
     // Set up circular peripheral dependencies.
     nrf5340_peripherals.init();
-    let base_peripherals = &nrf5340_peripherals.nrf52;
+    let base_peripherals = &nrf5340_peripherals.nrf53;
 
     // Configure kernel debug GPIOs as early as possible.
     kernel::debug::assign_gpios(

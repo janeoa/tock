@@ -3,7 +3,7 @@
 # Copyright Tock Contributors 2022.
 
 [package]
-name = "nRF53_components"
+name = "nrf53_components"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -12,7 +12,7 @@ edition.workspace = true
 components = { path = "../../components" }
 cortexm33 = { path = "../../../arch/cortex-m33" }
 kernel = { path = "../../../kernel" }
-nRF53 = { path = "../../../chips/nRF53" }
+nrf53 = { path = "../../../chips/nrf53" }
 segger = { path = "../../../chips/segger" }
 
 capsules-core = { path = "../../../capsules/core" }
