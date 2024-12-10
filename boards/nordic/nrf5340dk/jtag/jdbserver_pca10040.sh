@@ -2,4 +2,4 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2023.
 
-JLinkGDBServer -device nrf52 -speed 1200 -if swd -AutoConnect 1 -port 2331
+JLinkGDBServer -device nrf5340_xxAA -speed 4000 -if swd -AutoConnect 1 -port 2331

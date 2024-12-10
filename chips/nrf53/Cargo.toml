@@ -3,21 +3,19 @@
 # Copyright Tock Contributors 2022.
 
 [package]
-name = "nrf5x"
+name = "nrf53"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
 [dependencies]
+cortexm33 = { path = "../../arch/cortex-m33" }
 kernel = { path = "../../kernel" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 
-[features]
-default = []
-
-nrf51 = []
-nrf52 = []
-nrf53 = []
+[dependencies.nrf5x]
+path = "../nrf5x"
+features = ["nrf53"]
 
 [lints]
 workspace = true

@@ -23,14 +23,14 @@ install: flash
 # Upload the kernel over JTAG
 .PHONY: flash
 flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
-	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) --board nrf52dk --jlink $<
+	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) --board nrf53dk --jlink $<
 
 # Upload the kernel over JTAG using OpenOCD
 .PHONY: flash-openocd
 flash-openocd: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
-	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) --board nrf52dk --openocd $<
+	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) --board nrf53dk --openocd $<
 
 # Upload the kernel over serial/bootloader
 .PHONY: program
 program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).hex
-	$(error Cannot program nRF52840DK over USB. Use \`make flash\` and JTAG)
+	$(error Cannot program nRF5340DK over USB. Use \`make flash\` and JTAG)

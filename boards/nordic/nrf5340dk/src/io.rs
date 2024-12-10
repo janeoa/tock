@@ -7,7 +7,7 @@ use kernel::debug::IoWrite;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
-use nrf52840::uart::{Uarte, UARTE0_BASE};
+use nrf5340::uart::{Uarte, UARTE0_BASE};
 
 enum Writer {
     WriterUart(/* initialized */ bool),
@@ -69,21 +69,21 @@ pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
     use core::ptr::{addr_of, addr_of_mut};
     use kernel::debug;
     use kernel::hil::led;
-    use nrf52840::gpio::Pin;
+    use nrf5340::gpio::Pin;
 
     use crate::CHIP;
     use crate::PROCESSES;
     use crate::PROCESS_PRINTER;
 
     // The nRF52840DK LEDs (see back of board)
-    let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_13);
+    let led_kernel_pin = &nrf5340::gpio::GPIOPin::new(Pin::P0_13);
     let led = &mut led::LedLow::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
     debug::panic(
         &mut [led],
         writer,
         pi,
-        &cortexm4::support::nop,
+        &cortexm33::support::nop,
         &*addr_of!(PROCESSES),
         &*addr_of!(CHIP),
         &*addr_of!(PROCESS_PRINTER),

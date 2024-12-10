@@ -20,13 +20,14 @@ use kernel::utilities::StaticRef;
 
 #[cfg(feature = "nrf51")]
 const NUM_GPIOTE: usize = 4;
-#[cfg(feature = "nrf52")]
+#[cfg(any(feature = "nrf52", feature = "nrf53"))]
 const NUM_GPIOTE: usize = 8;
 // Dummy value for testing on Travis-CI.
 #[cfg(all(
     not(all(target_arch = "arm", target_os = "none")),
     not(feature = "nrf51"),
     not(feature = "nrf52"),
+    not(feature = "nrf53"),
 ))]
 const NUM_GPIOTE: usize = 4;
 
@@ -114,14 +115,14 @@ struct GpioRegisters {
     /// Latch register indicating what GPIO pins that have met the criteria set in the
     /// PIN_CNF\[n\].SENSE
     /// - Address: 0x520 - 0x524
-    #[cfg(feature = "nrf52")]
+    #[cfg(any(feature = "nrf52", feature = "nrf53"))]
     latch: ReadWrite<u32, Latch::Register>,
     /// Select between default DETECT signal behaviour and LDETECT mode
     /// - Address: 0x524 - 0x528
-    #[cfg(feature = "nrf52")]
+    #[cfg(any(feature = "nrf52", feature = "nrf53"))]
     detect_mode: ReadWrite<u32, DetectMode::Register>,
     /// Reserved
-    #[cfg(feature = "nrf52")]
+    #[cfg(any(feature = "nrf52", feature = "nrf53"))]
     _reserved2: [u32; 118],
     /// Configuration of GPIO pins
     pin_cnf: [ReadWrite<u32, PinConfig::Register>; 32],
