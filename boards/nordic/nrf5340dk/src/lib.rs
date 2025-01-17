@@ -95,16 +95,20 @@ const LED3_PIN: Pin = Pin::P0_15;
 const LED4_PIN: Pin = Pin::P0_16;
 
 // The nRF52840DK buttons (see back of board)
-const BUTTON1_PIN: Pin = Pin::P0_11;
-const BUTTON2_PIN: Pin = Pin::P0_12;
-const BUTTON3_PIN: Pin = Pin::P0_24;
-const BUTTON4_PIN: Pin = Pin::P0_25;
+const BUTTON1_PIN: Pin = Pin::P0_23;
+const BUTTON2_PIN: Pin = Pin::P0_24;
+const BUTTON3_PIN: Pin = Pin::P0_08;
+const BUTTON4_PIN: Pin = Pin::P0_09;
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
-const UART_RTS: Option<Pin> = Some(Pin::P0_05);
-const UART_TXD: Pin = Pin::P0_06;
-const UART_CTS: Option<Pin> = Some(Pin::P0_07);
-const UART_RXD: Pin = Pin::P0_08;
+// const UART_RTS: Option<Pin> = Some(Pin::P0_05);
+// const UART_TXD: Pin = Pin::P0_06;
+// const UART_CTS: Option<Pin> = Some(Pin::P0_07);
+// const UART_RXD: Pin = Pin::P0_08;
+const UART_TXD: Pin = Pin::P0_18;
+const UART_RXD: Pin = Pin::P0_20;
+const UART_RTS: Option<Pin> = Some(Pin::P0_19);
+const UART_CTS: Option<Pin> = Some(Pin::P0_17);
 
 const SPI_MOSI: Pin = Pin::P0_20;
 const SPI_MISO: Pin = Pin::P0_21;
@@ -326,7 +330,8 @@ pub unsafe fn ieee802154_udp(
     // 802.15.4
     //--------------------------------------------------------------------------
 
-    let device_id = nrf5340::ficr::FICR_INSTANCE.id();
+    // let device_id = nrf5340::ficr::FICR_INSTANCE.id();
+    let device_id = (*addr_of!(nrf5340::ficr::FICR_INSTANCE)).id();
     let device_id_bottom_16: u16 = u16::from_le_bytes([device_id[0], device_id[1]]);
 
     let eui64_driver = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
