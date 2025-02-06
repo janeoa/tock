@@ -2,31 +2,22 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "nRF52-DK",
-            "type": "gdb",
-            "request": "attach",
-            "executable": "${workspaceRoot}/boards/nrf52dk/target/thumbv7em-none-eabi/release/nrf52dk",
-            "target": "localhost:2331",
-            "remote": true,
-            "cwd": "${workspaceRoot}",
-            "gdbpath": "arm-none-eabi-gdb",
-            "autorun": [
-                "monitor reset",
-                "monitor speed auto",
-                "b initialize_ram_jump_to_main"
-            ]
-        },
-        {
-            "name": "MSP432 Cortex Debug",
-            "type": "cortex-debug",
-            "servertype": "openocd",
+            "name": "nRF53-DK Debug",
+            "cwd": "${workspaceFolder}",
+            "executable": "/Users/assetmalik/dev/nrf52/tock/target/thumbv8m.main-none-eabi/debug/nrf5340dk.elf",
             "request": "launch",
-            "executable": "${workspaceRoot}/target/thumbv7em-none-eabi/debug/msp-exp432p401r.elf",
-            "cwd": "${workspaceRoot}",
-            "svdFile": "${workspaceRoot}/boards/msp_exp432p401r/msp432.svd",
-            "runToMain": true,
-            "configFiles": [
-                "${workspaceRoot}/boards/msp_exp432p401r/openocd.cfg",
+            "type": "cortex-debug",
+            "servertype": "jlink",
+            "device": "nRF5340_xxAA",
+            "interface": "swd",
+            "runToEntryPoint": "main",
+            "svdFile": "${env:HOME}/.vscode/nrf5340.svd",
+            // "preLaunchTask": "Build Tock",
+            "postLaunchCommands": [
+                "monitor speed auto",
+                "monitor reset",
+                "b initialize_ram_jump_to_main",
+                "continue"
             ]
         }
     ]
