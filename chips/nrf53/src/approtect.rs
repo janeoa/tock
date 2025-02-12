@@ -18,7 +18,7 @@
 //! approtect.sw_disable_approtect();
 //! ```
 
-use crate::ficr;
+// use crate::ficr;
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -70,38 +70,8 @@ impl Approtect {
     /// - <https://devzone.nordicsemi.com/f/nordic-q-a/96590/how-to-disable-approtect-permanently-dfu-is-needed>
     /// - <https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf52-series-improved-approtect>
     pub fn sw_disable_approtect(&self) {
-        let factory_config = ficr::Ficr::new();
-        match factory_config.variant() {
-            ficr::Variant::AAF0 | ficr::Variant::Unspecified => {
-                // Newer revisions of the chip require setting the APPROTECT
-                // software register to `SwDisable`. We assume that an unspecified
-                // version means that it is new and the FICR module hasn't been
-                // updated to recognize it.
-                self.registers.disable.write(Disable::DISABLE::SWDISABLE);
-            }
-
-            // Exhaustively list variants here to produce compiler error on
-            // adding a new variant, which would otherwise not match the above
-            // condition.
-            ficr::Variant::AAA0
-            | ficr::Variant::AAAA
-            | ficr::Variant::AAAB
-            | ficr::Variant::AAB0
-            | ficr::Variant::AABA
-            | ficr::Variant::AABB
-            | ficr::Variant::AAC0
-            | ficr::Variant::AACA
-            | ficr::Variant::AACB
-            | ficr::Variant::AAD0
-            | ficr::Variant::AAD1
-            | ficr::Variant::AADA
-            | ficr::Variant::AAE0
-            | ficr::Variant::AAEA
-            | ficr::Variant::ABBA
-            | ficr::Variant::BAAA
-            | ficr::Variant::CAAA => {
-                // All other revisions don't need this.
-            }
-        }
+        // let factory_config = ficr::Ficr::new();
+        // I have deleted the checks from the nrf52 because I assume all nrf53 have approtect enabled by default
+        self.registers.disable.write(Disable::DISABLE::SWDISABLE);
     }
 }

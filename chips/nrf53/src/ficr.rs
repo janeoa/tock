@@ -133,12 +133,8 @@ register_bitfields! [u32,
     /// Part code
     InfoPart [
         PART OFFSET(0) NUMBITS(32) [
-            /// nRF52832
-            N52832 = 0x52832,
-            /// nRF52833
-            N52833 = 0x52833,
-            /// nRF52840
-            N52840 = 0x52840,
+            /// nRF5340
+            N5340 = 0x5340,
             /// Unspecified
             Unspecified = 0xffffffff
         ]
@@ -149,42 +145,20 @@ register_bitfields! [u32,
         // Note, some of these are not present in datasheets
         // but are in nrf52.svd or are observed in the wild
         VARIANT OFFSET(0) NUMBITS(32) [
-            /// AAA0
-            AAA0 = 0x41414130,
-            /// AAAA
-            AAAA = 0x41414141,
-            /// AAAB
-            AAAB = 0x41414142,
-            /// AAB0
-            AAB0 = 0x41414230,
-            /// AABA
-            AABA = 0x41414241,
-            /// AABB
-            AABB = 0x41414242,
-            /// AAC0
-            AAC0 = 0x41414330,
-            /// AACA
-            AACA = 0x41414341,
-            /// AACB
-            AACB = 0x41414342,
-            /// ABBA
-            ABBA = 0x41424241,
-            /// AAD0
-            AAD0 = 0x41414430,
-            /// AAD1
-            AAD1 = 0x41414431,
-            /// AADA
-            AADA = 0x41414441,
-            /// AAE0
-            AAE0 = 0x41414530,
-            /// AAEA
-            AAEA = 0x41414541,
-            /// AAF0
-            AAF0 = 0x41414630,
-            /// BAAA
-            BAAA = 0x42414141,
             /// CAAA
             CAAA = 0x43414141,
+            /// AAB0
+            AAB0 = 0x41414230,
+            /// ADA0
+            ADA0 = 0x41444130,
+            /// ADB0
+            ADB0 = 0x41444230,
+            /// AAD0
+            AAD0 = 0x41414430,
+            /// QKAA
+            QKAA = 0x514b4141,
+            /// CLAA
+            CLAA = 0x434c4141,
             /// Unspecified
             Unspecified = 0xffffffff
         ]
@@ -193,16 +167,16 @@ register_bitfields! [u32,
     // Note, some of these are not present in datasheet but is in nrf52.svd
     InfoPackage [
         PACKAGE OFFSET(0) NUMBITS(32) [
-            /// QFxx - 48-pin QFN
-            QF = 0x2000,
-            /// CHxx - 7x8 WLCSP 56 balls
-            CH = 0x2001,
-            /// CIxx - 7x8 WLCSP 56 balls<
-            CI = 0x2002,
-            /// QIxx - 73-pin aQFN
-            QI = 0x2004,
-            /// CKxx - 7x8 WLCSP 56 balls with backside coating for light protection
-            CK = 0x2005,
+            // /// QFxx - 48-pin QFN
+            // QF = 0x2000,
+            // /// CHxx - 7x8 WLCSP 56 balls
+            // CH = 0x2001,
+            // /// CIxx - 7x8 WLCSP 56 balls<
+            // CI = 0x2002,
+            // /// QIxx - 73-pin aQFN
+            // QI = 0x2004,
+            // /// CKxx - 7x8 WLCSP 56 balls with backside coating for light protection
+            // CK = 0x2005,
             /// Unspecified
             Unspecified = 0xffffffff
         ]
@@ -247,44 +221,27 @@ register_bitfields! [u32,
 #[derive(PartialEq, Debug)]
 #[repr(u32)]
 pub(crate) enum Variant {
-    AAA0 = 0x41414130,
-    AAAA = 0x41414141,
-    AAAB = 0x41414142,
     AAB0 = 0x41414230,
-    AABA = 0x41414241,
-    AABB = 0x41414242,
-    AAC0 = 0x41414330,
-    AACA = 0x41414341,
-    AACB = 0x41414342,
+    ADA0 = 0x41444130,
+    ADB0 = 0x41444230,
     AAD0 = 0x41414430,
-    AAD1 = 0x41414431,
-    AADA = 0x41414441,
-    AAE0 = 0x41414530,
-    AAEA = 0x41414541,
-    AAF0 = 0x41414630,
-    ABBA = 0x41424241,
-    BAAA = 0x42414141,
-    CAAA = 0x43414141,
+    QKAA = 0x514b4141,
+    CLAA = 0x434c4141,
     Unspecified = 0xffffffff,
 }
 
 #[derive(PartialEq, Debug)]
 #[repr(u32)]
 enum Part {
-    N52832 = 0x52832,
-    N52833 = 0x52833,
-    N52840 = 0x52840,
+    N5340 = 0x5340,
     Unspecified = 0xffffffff,
 }
 
 #[derive(PartialEq, Debug)]
 #[repr(u32)]
 enum Package {
-    QF = 0x2000,
-    CH = 0x2001,
-    CI = 0x2002,
-    QI = 0x2004,
-    CK = 0x2005,
+    QK = 0x2006, // QFN-94 package (QKAA variant)
+    CL = 0x2007, // WLCSP package (CLAA variant)
     Unspecified = 0xffffffff,
 }
 
@@ -330,35 +287,18 @@ impl Ficr {
 
     fn part(&self) -> Part {
         match self.registers.info_part.get() {
-            0x52832 => Part::N52832,
-            0x52833 => Part::N52833,
-            0x52840 => Part::N52840,
+            0x5340 => Part::N5340,
             _ => Part::Unspecified,
         }
     }
 
     pub(crate) fn variant(&self) -> Variant {
-        // If you update this, make sure to update
-        // `has_updated_approtect_logic()` as well.
         match self.registers.info_variant.get() {
-            0x41414130 => Variant::AAA0,
-            0x41414141 => Variant::AAAA,
-            0x41414142 => Variant::AAAB,
-            0x41414230 => Variant::AAB0,
-            0x41414241 => Variant::AABA,
-            0x41414242 => Variant::AABB,
-            0x41414330 => Variant::AAC0,
-            0x41414341 => Variant::AACA,
-            0x41414342 => Variant::AACB,
-            0x41424241 => Variant::ABBA,
-            0x41414430 => Variant::AAD0,
-            0x41414431 => Variant::AAD1,
-            0x41414441 => Variant::AADA,
-            0x41414530 => Variant::AAE0,
-            0x41414541 => Variant::AAEA,
-            0x41414630 => Variant::AAF0,
-            0x42414141 => Variant::BAAA,
-            0x43414141 => Variant::CAAA,
+            // nRF5340 (xxAA) – match all documented variant codes
+            0x41414230 => Variant::AAB0, // "AAB0": Engineering A (pre-production)&#8203;:contentReference[oaicite:8]{index=8}
+            0x41444130 => Variant::ADA0, // "ADA0": Engineering D (WLCSP package)&#8203;:contentReference[oaicite:9]{index=9}
+            0x41444230 => Variant::ADB0, // "ADB0": Engineering D (QFN package)&#8203;:contentReference[oaicite:10]{index=10}
+            0x41414430 => Variant::AAD0, // "AAD0": Production Revision 1&#8203;:contentReference[oaicite:11]{index=11}
             _ => Variant::Unspecified,
         }
     }
@@ -372,19 +312,17 @@ impl Ficr {
     pub(crate) fn has_updated_approtect_logic(&self) -> bool {
         // We assume that an unspecified version means that it is new and this
         // module hasn't been updated to recognize it.
-        match self.variant() {
-            Variant::AAF0 | Variant::Unspecified => true,
-            _ => false,
-        }
+        // match self.variant() {
+        //     Variant::AAF0 | Variant::Unspecified => true,
+        //     _ => false,
+        // }
+        true
     }
 
     fn package(&self) -> Package {
         match self.registers.info_package.get() {
-            0x2000 => Package::QF,
-            0x2001 => Package::CH,
-            0x2002 => Package::CI,
-            0x2004 => Package::QI,
-            0x2005 => Package::CK,
+            0x2006 => Package::QK,
+            0x2007 => Package::CL,
             _ => Package::Unspecified,
         }
     }
