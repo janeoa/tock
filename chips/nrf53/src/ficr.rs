@@ -17,7 +17,8 @@ use kernel::utilities::registers::{register_bitfields, ReadOnly};
 use kernel::utilities::StaticRef;
 
 const FICR_BASE: StaticRef<FicrRegisters> =
-    unsafe { StaticRef::new(0x10000000 as *const FicrRegisters) };
+    // unsafe { StaticRef::new(0x10000000 as *const FicrRegisters) };
+    unsafe { StaticRef::new(0x00FF0000 as *const FicrRegisters) };
 
 /// Struct of the FICR registers
 ///

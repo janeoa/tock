@@ -245,7 +245,7 @@ pub enum AdcChannel {
 }
 
 const SAADC_BASE: StaticRef<AdcRegisters> =
-    unsafe { StaticRef::new(0x40007000 as *const AdcRegisters) };
+    unsafe { StaticRef::new(0x5000E000 as *const AdcRegisters) };
 
 // Buffer to save completed sample to.
 static mut SAMPLE: [u16; 1] = [0; 1];
