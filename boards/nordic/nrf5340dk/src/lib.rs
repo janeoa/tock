@@ -228,23 +228,23 @@ pub struct Platform {
     temp: &'static TemperatureDriver,
     /// The IPC driver.
     pub ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
-        'static,
-        nrf5340::acomp::Comparator<'static>,
-    >,
+    // analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
+    //     'static,
+    //     nrf5340::acomp::Comparator<'static>,
+    // >,
     alarm: &'static AlarmDriver,
-    i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
-        'static,
-        nrf5340::i2c::TWI<'static>,
-    >,
-    spi_controller: &'static capsules_core::spi_controller::Spi<
-        'static,
-        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
-            'static,
-            nrf5340::spi::SPIM<'static>,
-        >,
-    >,
-    kv_driver: &'static KVDriver,
+    // i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
+    //     'static,
+    //     nrf5340::i2c::TWI<'static>,
+    // >,
+    // spi_controller: &'static capsules_core::spi_controller::Spi<
+    //     'static,
+    //     capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+    //         'static,
+    //         nrf5340::spi::SPIM<'static>,
+    //     >,
+    // >,
+    // kv_driver: &'static KVDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm33::systick::SysTick,
 }
@@ -264,11 +264,11 @@ impl SyscallDriverLookup for Platform {
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
-            capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
+            // capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
-            capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
-            capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
+            // capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
+            // capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
+            // capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
             _ => f(None),
         }
     }
@@ -473,8 +473,8 @@ pub unsafe fn start() -> (
         BUTTON_RST_PIN,
         nrf5340::uicr::Regulator0Output::DEFAULT,
         &base_peripherals.nvmc,
-    )
-    .finalize(());
+    );
+    // .finalize(());
 
     //--------------------------------------------------------------------------
     // CAPABILITIES
@@ -693,143 +693,143 @@ pub unsafe fn start() -> (
     // SPI
     //--------------------------------------------------------------------------
 
-    let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
-        .finalize(components::spi_mux_component_static!(nrf5340::spi::SPIM));
+    // let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
+    //     .finalize(components::spi_mux_component_static!(nrf5340::spi::SPIM));
 
-    // Create the SPI system call capsule.
-    let spi_controller = components::spi::SpiSyscallComponent::new(
-        board_kernel,
-        mux_spi,
-        kernel::hil::spi::cs::IntoChipSelect::<_, kernel::hil::spi::cs::ActiveLow>::into_cs(
-            &gpio_port[SPI_CS],
-        ),
-        capsules_core::spi_controller::DRIVER_NUM,
-    )
-    .finalize(components::spi_syscall_component_static!(
-        nrf5340::spi::SPIM
-    ));
+    // // Create the SPI system call capsule.
+    // let spi_controller = components::spi::SpiSyscallComponent::new(
+    //     board_kernel,
+    //     mux_spi,
+    //     kernel::hil::spi::cs::IntoChipSelect::<_, kernel::hil::spi::cs::ActiveLow>::into_cs(
+    //         &gpio_port[SPI_CS],
+    //     ),
+    //     capsules_core::spi_controller::DRIVER_NUM,
+    // )
+    // .finalize(components::spi_syscall_component_static!(
+    //     nrf5340::spi::SPIM
+    // ));
 
-    base_peripherals.spim0.configure(
-        nrf5340::pinmux::Pinmux::new(SPI_MOSI as u32),
-        nrf5340::pinmux::Pinmux::new(SPI_MISO as u32),
-        nrf5340::pinmux::Pinmux::new(SPI_CLK as u32),
-    );
+    // // base_peripherals.spim0.configure(
+    // //     nrf5340::pinmux::Pinmux::new(SPI_MOSI as u32),
+    // //     nrf5340::pinmux::Pinmux::new(SPI_MISO as u32),
+    // //     nrf5340::pinmux::Pinmux::new(SPI_CLK as u32),
+    // // );
 
     //--------------------------------------------------------------------------
     // ONBOARD EXTERNAL FLASH
     //--------------------------------------------------------------------------
 
-    let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
-        Some(&gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN]),
-        Some(&gpio_port[SPI_MX25R6435F_HOLD_PIN]),
-        &gpio_port[SPI_MX25R6435F_CHIP_SELECT],
-        mux_alarm,
-        mux_spi,
-    )
-    .finalize(components::mx25r6435f_component_static!(
-        nrf5340::spi::SPIM,
-        nrf5340::gpio::GPIOPin,
-        nrf5340::rtc::Rtc
-    ));
+    // let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
+    //     Some(&gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN]),
+    //     Some(&gpio_port[SPI_MX25R6435F_HOLD_PIN]),
+    //     &gpio_port[SPI_MX25R6435F_CHIP_SELECT],
+    //     mux_alarm,
+    //     mux_spi,
+    // )
+    // .finalize(components::mx25r6435f_component_static!(
+    //     nrf5340::spi::SPIM,
+    //     nrf5340::gpio::GPIOPin,
+    //     nrf5340::rtc::Rtc
+    // ));
 
     //--------------------------------------------------------------------------
     // TICKV
     //--------------------------------------------------------------------------
 
-    // Static buffer to use when reading/writing flash for TicKV.
-    let page_buffer = static_init!(
-        <Mx25r6435f as kernel::hil::flash::Flash>::Page,
-        <Mx25r6435f as kernel::hil::flash::Flash>::Page::default()
-    );
+    // // Static buffer to use when reading/writing flash for TicKV.
+    // let page_buffer = static_init!(
+    //     <Mx25r6435f as kernel::hil::flash::Flash>::Page,
+    //     <Mx25r6435f as kernel::hil::flash::Flash>::Page::default()
+    // );
 
-    // SipHash for creating TicKV hashed keys.
-    let sip_hash = components::siphash::Siphasher24Component::new()
-        .finalize(components::siphasher24_component_static!());
+    // // SipHash for creating TicKV hashed keys.
+    // let sip_hash = components::siphash::Siphasher24Component::new()
+    //     .finalize(components::siphasher24_component_static!());
 
-    // TicKV with Tock wrapper/interface.
-    let tickv = components::tickv::TicKVDedicatedFlashComponent::new(
-        sip_hash,
-        mx25r6435f,
-        0, // start at the beginning of the flash chip
-        (capsules_extra::mx25r6435f::SECTOR_SIZE as usize) * 32, // arbitrary size of 32 pages
-        page_buffer,
-    )
-    .finalize(components::tickv_dedicated_flash_component_static!(
-        Mx25r6435f,
-        Siphasher24,
-        TICKV_PAGE_SIZE,
-    ));
+    // // TicKV with Tock wrapper/interface.
+    // let tickv = components::tickv::TicKVDedicatedFlashComponent::new(
+    //     sip_hash,
+    //     mx25r6435f,
+    //     0, // start at the beginning of the flash chip
+    //     (capsules_extra::mx25r6435f::SECTOR_SIZE as usize) * 32, // arbitrary size of 32 pages
+    //     page_buffer,
+    // )
+    // .finalize(components::tickv_dedicated_flash_component_static!(
+    //     Mx25r6435f,
+    //     Siphasher24,
+    //     TICKV_PAGE_SIZE,
+    // ));
 
-    // KVSystem interface to KV (built on TicKV).
-    let tickv_kv_store = components::kv::TicKVKVStoreComponent::new(tickv).finalize(
-        components::tickv_kv_store_component_static!(
-            TicKVDedicatedFlash,
-            capsules_extra::tickv::TicKVKeyType,
-        ),
-    );
+    // // KVSystem interface to KV (built on TicKV).
+    // let tickv_kv_store = components::kv::TicKVKVStoreComponent::new(tickv).finalize(
+    //     components::tickv_kv_store_component_static!(
+    //         TicKVDedicatedFlash,
+    //         capsules_extra::tickv::TicKVKeyType,
+    //     ),
+    // );
 
-    let kv_store_permissions = components::kv::KVStorePermissionsComponent::new(tickv_kv_store)
-        .finalize(components::kv_store_permissions_component_static!(
-            TicKVKVStore
-        ));
+    // let kv_store_permissions = components::kv::KVStorePermissionsComponent::new(tickv_kv_store)
+    //     .finalize(components::kv_store_permissions_component_static!(
+    //         TicKVKVStore
+    //     ));
 
-    // Share the KV stack with a mux.
-    let mux_kv = components::kv::KVPermissionsMuxComponent::new(kv_store_permissions).finalize(
-        components::kv_permissions_mux_component_static!(KVStorePermissions),
-    );
+    // // Share the KV stack with a mux.
+    // let mux_kv = components::kv::KVPermissionsMuxComponent::new(kv_store_permissions).finalize(
+    //     components::kv_permissions_mux_component_static!(KVStorePermissions),
+    // );
 
-    // Create a virtual component for the userspace driver.
-    let virtual_kv_driver = components::kv::VirtualKVPermissionsComponent::new(mux_kv).finalize(
-        components::virtual_kv_permissions_component_static!(KVStorePermissions),
-    );
+    // // Create a virtual component for the userspace driver.
+    // let virtual_kv_driver = components::kv::VirtualKVPermissionsComponent::new(mux_kv).finalize(
+    //     components::virtual_kv_permissions_component_static!(KVStorePermissions),
+    // );
 
-    // Userspace driver for KV.
-    let kv_driver = components::kv::KVDriverComponent::new(
-        virtual_kv_driver,
-        board_kernel,
-        capsules_extra::kv_driver::DRIVER_NUM,
-    )
-    .finalize(components::kv_driver_component_static!(
-        VirtualKVPermissions
-    ));
+    // // Userspace driver for KV.
+    // let kv_driver = components::kv::KVDriverComponent::new(
+    //     virtual_kv_driver,
+    //     board_kernel,
+    //     capsules_extra::kv_driver::DRIVER_NUM,
+    // )
+    // .finalize(components::kv_driver_component_static!(
+    //     VirtualKVPermissions
+    // ));
 
     //--------------------------------------------------------------------------
     // I2C CONTROLLER/TARGET
     //--------------------------------------------------------------------------
 
-    let i2c_master_slave = components::i2c::I2CMasterSlaveDriverComponent::new(
-        board_kernel,
-        capsules_core::i2c_master_slave_driver::DRIVER_NUM,
-        &base_peripherals.twi1,
-    )
-    .finalize(components::i2c_master_slave_component_static!(
-        nrf5340::i2c::TWI
-    ));
+    // let i2c_master_slave = components::i2c::I2CMasterSlaveDriverComponent::new(
+    //     board_kernel,
+    //     capsules_core::i2c_master_slave_driver::DRIVER_NUM,
+    //     &base_peripherals.twi1,
+    // )
+    // .finalize(components::i2c_master_slave_component_static!(
+    //     nrf5340::i2c::TWI
+    // ));
 
-    base_peripherals.twi1.configure(
-        nrf5340::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
-        nrf5340::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
-    );
-    base_peripherals.twi1.set_speed(nrf5340::i2c::Speed::K400);
+    // base_peripherals.twi1.configure(
+    //     nrf5340::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
+    //     nrf5340::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
+    // );
+    // base_peripherals.twi1.set_speed(nrf5340::i2c::Speed::K400);
 
     //--------------------------------------------------------------------------
     // ANALOG COMPARATOR
     //--------------------------------------------------------------------------
 
-    // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
-    // These are hardcoded pin assignments specified in the driver
-    let analog_comparator = components::analog_comparator::AnalogComparatorComponent::new(
-        &base_peripherals.acomp,
-        components::analog_comparator_component_helper!(
-            nrf5340::acomp::Channel,
-            &*addr_of!(nrf5340::acomp::CHANNEL_AC0)
-        ),
-        board_kernel,
-        capsules_extra::analog_comparator::DRIVER_NUM,
-    )
-    .finalize(components::analog_comparator_component_static!(
-        nrf5340::acomp::Comparator
-    ));
+    // // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
+    // // These are hardcoded pin assignments specified in the driver
+    // let analog_comparator = components::analog_comparator::AnalogComparatorComponent::new(
+    //     &base_peripherals.acomp,
+    //     components::analog_comparator_component_helper!(
+    //         nrf5340::acomp::Channel,
+    //         &*addr_of!(nrf5340::acomp::CHANNEL_AC0)
+    //     ),
+    //     board_kernel,
+    //     capsules_extra::analog_comparator::DRIVER_NUM,
+    // )
+    // .finalize(components::analog_comparator_component_static!(
+    //     nrf5340::acomp::Comparator
+    // ));
 
     //--------------------------------------------------------------------------
     // NRF CLOCK SETUP
@@ -902,15 +902,15 @@ pub unsafe fn start() -> (
         adc,
         temp,
         alarm,
-        analog_comparator,
+        // analog_comparator,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        i2c_master_slave,
-        spi_controller,
-        kv_driver,
+        // i2c_master_slave,
+        // spi_controller,
+        // kv_driver,
         scheduler,
         systick: cortexm33::systick::SysTick::new_with_calibration(64000000),
     };

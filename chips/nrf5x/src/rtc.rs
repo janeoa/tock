@@ -13,7 +13,7 @@ use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 const RTC1_BASE: StaticRef<RtcRegisters> =
-    unsafe { StaticRef::new(0x40011000 as *const RtcRegisters) };
+    unsafe { StaticRef::new(0x50011000 as *const RtcRegisters) };
 
 #[repr(C)]
 struct RtcRegisters {

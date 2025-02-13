@@ -37,96 +37,96 @@ impl<'a> NrfStartupComponent<'a> {
     }
 }
 
-impl Component for NrfStartupComponent<'_> {
-    type StaticInput = ();
-    type Output = ();
-    fn finalize(self, _s: Self::StaticInput) -> Self::Output {
-        // Disable APPROTECT in software. This is required as of newer nRF52
-        // hardware revisions. See
-        // https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf53-series-improved-approtect.
-        // If run on older HW revisions this function will do nothing.
-        let approtect = nrf53::approtect::Approtect::new();
-        approtect.sw_disable_approtect();
+// impl Component for NrfStartupComponent<'_> {
+//     type StaticInput = ();
+//     type Output = ();
+// fn finalize(self, _s: Self::StaticInput) -> Self::Output {
+//     // Disable APPROTECT in software. This is required as of newer nRF52
+//     // hardware revisions. See
+//     // https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf53-series-improved-approtect.
+//     // If run on older HW revisions this function will do nothing.
+//     let approtect = nrf53::approtect::Approtect::new();
+//     approtect.sw_disable_approtect();
 
-        // Make non-volatile memory writable and activate the reset button
-        let uicr = nrf53::uicr::Uicr::new();
+//     // Make non-volatile memory writable and activate the reset button
+//     let uicr = nrf53::uicr::Uicr::new();
 
-        // Check if we need to erase UICR memory to re-program it
-        // This only needs to be done when a bit needs to be flipped from 0 to 1.
-        let psel0_reset: u32 = uicr.get_psel0_reset_pin().map_or(0, |pin| pin as u32);
-        let psel1_reset: u32 = uicr.get_psel1_reset_pin().map_or(0, |pin| pin as u32);
-        let mut erase_uicr = ((!psel0_reset & (self.button_rst_pin as u32))
-            | (!psel1_reset & (self.button_rst_pin as u32))
-            | (!(uicr.get_vout() as u32) & (self.reg_vout as u32)))
-            != 0;
+//     // Check if we need to erase UICR memory to re-program it
+//     // This only needs to be done when a bit needs to be flipped from 0 to 1.
+//     let psel0_reset: u32 = uicr.get_psel0_reset_pin().map_or(0, |pin| pin as u32);
+//     let psel1_reset: u32 = uicr.get_psel1_reset_pin().map_or(0, |pin| pin as u32);
+//     let mut erase_uicr = ((!psel0_reset & (self.button_rst_pin as u32))
+//         | (!psel1_reset & (self.button_rst_pin as u32))
+//         | (!(uicr.get_vout() as u32) & (self.reg_vout as u32)))
+//         != 0;
 
-        // Only enabling the NFC pin protection requires an erase.
-        if self.nfc_as_gpios {
-            erase_uicr |= !uicr.is_nfc_pins_protection_enabled();
-        }
+//     // Only enabling the NFC pin protection requires an erase.
+//     if self.nfc_as_gpios {
+//         erase_uicr |= !uicr.is_nfc_pins_protection_enabled();
+//     }
 
-        // On new nRF52 variants we need to ensure that the APPROTECT field in UICR is
-        // set to `HwDisable`.
-        if uicr.is_ap_protect_enabled() {
-            erase_uicr = true;
-        }
+//     // On new nRF52 variants we need to ensure that the APPROTECT field in UICR is
+//     // set to `HwDisable`.
+//     if uicr.is_ap_protect_enabled() {
+//         erase_uicr = true;
+//     }
 
-        if erase_uicr {
-            self.nvmc.erase_uicr();
-        }
+//     if erase_uicr {
+//         self.nvmc.erase_uicr();
+//     }
 
-        self.nvmc.configure_writeable();
-        while !self.nvmc.is_ready() {}
+//     self.nvmc.configure_writeable();
+//     while !self.nvmc.is_ready() {}
 
-        let mut needs_soft_reset: bool = false;
+//     let mut needs_soft_reset: bool = false;
 
-        // Configure reset pins
-        if uicr
-            .get_psel0_reset_pin()
-            .is_none_or(|pin| pin != self.button_rst_pin)
-        {
-            uicr.set_psel0_reset_pin(self.button_rst_pin);
-            while !self.nvmc.is_ready() {}
-            needs_soft_reset = true;
-        }
-        if uicr
-            .get_psel1_reset_pin()
-            .is_none_or(|pin| pin != self.button_rst_pin)
-        {
-            uicr.set_psel1_reset_pin(self.button_rst_pin);
-            while !self.nvmc.is_ready() {}
-            needs_soft_reset = true;
-        }
+//     // Configure reset pins
+//     if uicr
+//         .get_psel0_reset_pin()
+//         .is_none_or(|pin| pin != self.button_rst_pin)
+//     {
+//         uicr.set_psel0_reset_pin(self.button_rst_pin);
+//         while !self.nvmc.is_ready() {}
+//         needs_soft_reset = true;
+//     }
+//     if uicr
+//         .get_psel1_reset_pin()
+//         .is_none_or(|pin| pin != self.button_rst_pin)
+//     {
+//         uicr.set_psel1_reset_pin(self.button_rst_pin);
+//         while !self.nvmc.is_ready() {}
+//         needs_soft_reset = true;
+//     }
 
-        // Configure voltage regulator output
-        if uicr.get_vout() != self.reg_vout {
-            uicr.set_vout(self.reg_vout);
-            while !self.nvmc.is_ready() {}
-            needs_soft_reset = true;
-        }
+//     // Configure voltage regulator output
+//     if uicr.get_vout() != self.reg_vout {
+//         uicr.set_vout(self.reg_vout);
+//         while !self.nvmc.is_ready() {}
+//         needs_soft_reset = true;
+//     }
 
-        // Check if we need to free the NFC pins for GPIO
-        if self.nfc_as_gpios {
-            uicr.set_nfc_pins_protection(true);
-            while !self.nvmc.is_ready() {}
-            needs_soft_reset = true;
-        }
+//     // Check if we need to free the NFC pins for GPIO
+//     if self.nfc_as_gpios {
+//         uicr.set_nfc_pins_protection(true);
+//         while !self.nvmc.is_ready() {}
+//         needs_soft_reset = true;
+//     }
 
-        // If APPROTECT was not already disabled, ensure it is set to disabled.
-        if uicr.is_ap_protect_enabled() {
-            uicr.disable_ap_protect();
-            while !self.nvmc.is_ready() {}
-            needs_soft_reset = true;
-        }
+//     // If APPROTECT was not already disabled, ensure it is set to disabled.
+//     if uicr.is_ap_protect_enabled() {
+//         uicr.disable_ap_protect();
+//         while !self.nvmc.is_ready() {}
+//         needs_soft_reset = true;
+//     }
 
-        // Any modification of UICR needs a soft reset for the changes to be taken into account.
-        if needs_soft_reset {
-            unsafe {
-                cortexm33::scb::reset();
-            }
-        }
-    }
-}
+//     // Any modification of UICR needs a soft reset for the changes to be taken into account.
+//     if needs_soft_reset {
+//         unsafe {
+//             cortexm33::scb::reset();
+//         }
+//     }
+// }
+// }
 
 pub struct NrfClockComponent<'a> {
     clock: &'a nrf53::clock::Clock,
@@ -148,7 +148,8 @@ impl Component for NrfClockComponent<'_> {
         self.clock.high_stop();
 
         self.clock
-            .low_set_source(nrf53::clock::LowClockSource::XTAL);
+            // .low_set_source(nrf53::clock::LowClockSource::XTAL);
+            .low_set_source(nrf53::clock::LowClockSource::RC);
         self.clock.low_start();
         self.clock.high_start();
         while !self.clock.low_started() {}

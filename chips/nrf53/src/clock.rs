@@ -40,9 +40,9 @@ register_structs! {
         (0x100 => events_hfclkstarted: ReadOnly<u32, Status::Register>),
         (0x104 => events_lfclkstarted: ReadOnly<u32, Status::Register>),
         (0x108 => _reserved2),
-        (0x10C => events_done: ReadOnly<u32, Status::Register>),
-        (0x110 => events_ctto: ReadOnly<u32, Status::Register>),
-        (0x114 => _reserved3),
+        (0x11C => events_done: ReadOnly<u32, Status::Register>), //
+        // (0x110 => events_ctto: ReadOnly<u32, Status::Register>),
+        (0x120 => _reserved3),
         (0x304 => intenset: ReadWrite<u32, Interrupt::Register>),
         (0x308 => intenclr: ReadWrite<u32, Interrupt::Register>),
         (0x30C => _reserved4),
@@ -54,11 +54,12 @@ register_structs! {
         (0x41C => lfclksrccopy: ReadOnly<u32, LfClkSrcCopy::Register>),
         (0x420 => _reserved6),
         (0x518 => lfclksrc: ReadWrite<u32, LfClkSrc::Register>),
-        (0x51C => _reserved7),
-        (0x538 => ctiv: ReadWrite<u32, Ctiv::Register>),
-        (0x53C => _reserved8),
-        (0x55C => traceconfig: ReadWrite<u32, TraceConfig::Register>),
-        (0x560 => @END),
+        (0x51C => @END),
+        // (0x51C => _reserved7),
+        // (0x538 => ctiv: ReadWrite<u32, Ctiv::Register>),
+        // (0x53C => _reserved8),
+        // (0x55C => traceconfig: ReadWrite<u32, TraceConfig::Register>),
+        // (0x560 => @END),
     }
 }
 
@@ -127,7 +128,7 @@ register_bitfields! [u32,
 ];
 
 const CLOCK_BASE: StaticRef<ClockRegisters> =
-    unsafe { StaticRef::new(0x40000000 as *const ClockRegisters) };
+    unsafe { StaticRef::new(0x50005000 as *const ClockRegisters) };
 
 /// Interrupt sources
 pub enum InterruptField {

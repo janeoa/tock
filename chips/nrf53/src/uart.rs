@@ -25,7 +25,7 @@ const UARTE_MAX_BUFFER_SIZE: u32 = 0xff;
 static mut BYTE: u8 = 0;
 
 pub const UARTE0_BASE: StaticRef<UarteRegisters> =
-    unsafe { StaticRef::new(0x40002000 as *const UarteRegisters) };
+    unsafe { StaticRef::new(0x50002000 as *const UarteRegisters) };
 
 #[repr(C)]
 pub struct UarteRegisters {
