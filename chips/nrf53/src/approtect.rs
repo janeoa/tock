@@ -23,35 +23,45 @@ use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
 
-const APPROTECT_BASE: StaticRef<ApprotectRegisters> =
-    unsafe { StaticRef::new(0x40000000 as *const ApprotectRegisters) };
+const APPROTECT_BASE: StaticRef<DebuggerRegisters> =
+    // The nrf52 used to have 0x40000000, the nrf53 has 0x50000000
+    unsafe { StaticRef::new(0x50000000 as *const DebuggerRegisters) };
 
 register_structs! {
-    ApprotectRegisters {
-        (0x000 => _reserved0),
-        (0x550 => forceprotect: ReadWrite<u32, Forceprotect::Register>),
-        (0x554 => _reserved1),
-        (0x558 => disable: ReadWrite<u32, Disable::Register>),
-        (0x55c => @END),
+    // CTRL-AP - Control access port
+    DebuggerRegisters {
+        (0x000 => _system_reset_request),
+        (0x004 => _erase_all_request),
+        (0x008 => _erase_all_status),
+        (0x00C => _approtect_status),
+        (0x010 => approtect_disable: ReadWrite<u32, Disable::Register>),
+        (0x014 => _reserved0),
+        (0x018 => _reserved1),
+        (0x01C => _reserved2),
+        (0x020 => @END),
+        // (0x550 => forceprotect: ReadWrite<u32, Forceprotect::Register>),
+        // (0x554 => _reserved1),
+        // (0x558 => disable: ReadWrite<u32, Disable::Register>),
+
     }
 }
 
 register_bitfields! [u32,
-    Forceprotect [
-        FORCEPROTECT OFFSET(0) NUMBITS(8) [
+    Approtect_enable [
+        APPROTECT_ENABLE OFFSET(0) NUMBITS(8) [
             FORCE = 0
         ]
     ],
     /// Access port protection
     Disable [
         DISABLE OFFSET(0) NUMBITS(8) [
-            SWDISABLE = 0x5a
+            APPROTECT_SHARED_VALUE = 0x50FA50FA
         ]
     ]
 ];
 
 pub struct Approtect {
-    registers: StaticRef<ApprotectRegisters>,
+    registers: StaticRef<DebuggerRegisters>,
 }
 
 impl Approtect {
@@ -72,6 +82,9 @@ impl Approtect {
     pub fn sw_disable_approtect(&self) {
         // let factory_config = ficr::Ficr::new();
         // I have deleted the checks from the nrf52 because I assume all nrf53 have approtect enabled by default
-        self.registers.disable.write(Disable::DISABLE::SWDISABLE);
+        self.registers
+            .approtect_disable
+            .write(Disable::DISABLE::APPROTECT_SHARED_VALUE);
+        // const DISABLE_KEY: u32 = 0x50FA50FA; // lets assume the
     }
 }

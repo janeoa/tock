@@ -225,8 +225,8 @@ pub(crate) enum Variant {
     ADA0 = 0x41444130,
     ADB0 = 0x41444230,
     AAD0 = 0x41414430,
-    QKAA = 0x514b4141,
-    CLAA = 0x434c4141,
+    // QKAA = 0x514b4141,
+    // CLAA = 0x434c4141,
     Unspecified = 0xffffffff,
 }
 
