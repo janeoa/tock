@@ -9,61 +9,44 @@
 
 use crate::ficr;
 use enum_primitive::cast::FromPrimitive;
+use kernel::debug::debug_println;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadWrite};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
+
+// use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 
 use crate::gpio::Pin;
 
 const UICR_BASE: StaticRef<UicrRegisters> =
     unsafe { StaticRef::new(0x10001200 as *const UicrRegisters) };
 
-#[repr(C)]
-struct UicrRegisters {
-    /// Mapping of the nRESET function (see POWER chapter for details)
-    /// - Address: 0x200 - 0x204
-    pselreset0: ReadWrite<u32, Pselreset::Register>,
-    /// Mapping of the nRESET function (see POWER chapter for details)
-    /// - Address: 0x204 - 0x208
-    pselreset1: ReadWrite<u32, Pselreset::Register>,
-    // /// Access Port protection
-    // /// - Address: 0x208 - 0x20c
-    // approtect: ReadWrite<u32, ApProtect::Register>,
-    /// Setting of pins dedicated to NFC functionality: NFC antenna or GPIO
-    /// - Address: 0x20c - 0x210
-    nfcpins: ReadWrite<u32, NfcPins::Register>,
-    _reserved1: [u32; 60],
-    /// External circuitry to be supplied from VDD pin.
-    /// - Address: 0x300 - 0x304
-    extsupply: ReadWrite<u32, ExtSupply::Register>,
-    /// GPIO reference voltage
-    /// - Address: 0x304 - 0x308
-    regout0: ReadWrite<u32, RegOut::Register>,
+register_structs! {
+    // CTRL-AP - Control access port
+    UicrRegisters {
+        (0x000 => approtect: ReadWrite<u32, ApProtect::Register>),
+        (0x004 => _reserved1),
+        (0x00C => extsupply: ReadWrite<u32, ExtSupply::Register>),
+        (0x010 => _reserved2),
+        (0x01C => secure_approtect: ReadWrite<u32, ApProtect::Register>),
+        (0x020 => _reserved3),
+        (0x028 => nfcpins),
+        (0x02C => _reserved4),
+        (0x030 => @END),
+    }
 }
 
 register_bitfields! [u32,
-    /// Task register
-    Pselreset [
-        /// GPIO number Px.nn onto which Reset is exposed
-        PIN OFFSET(0) NUMBITS(5) [],
-        /// GPIO port number Pn.xx onto with Reset is exposed
-        PORT OFFSET(5) NUMBITS(1) [],
-        /// Connection
-        CONNECTION OFFSET(31) NUMBITS(1) [
-            DISCONNECTED = 1,
-            CONNECTED = 0
-        ]
-    ],
     /// Access port protection
     ApProtect [
         /// Ready event
-        PALL OFFSET(0) NUMBITS(8) [
+        ApProtectVals OFFSET(0) NUMBITS(32) [
             /// Enable
-            ENABLED = 0x00,
+            UNPROTECTED = 0xFFFFFFFF,
             /// Disable for later nRF52 variants
-            HWDISABLE = 0x5a,
+            PROTECTED   = 0x00000000,
             /// Disable
-            DISABLED = 0xff
+            CUSTOM      = 0x69696969,
         ]
     ],
     /// Setting of pins dedicated to NFC functionality: NFC antenna or GPIO
@@ -144,76 +127,41 @@ impl Uicr {
         }
     }
 
-    pub fn set_psel0_reset_pin(&self, pin: Pin) {
-        self.registers.pselreset0.set(pin as u32);
+    pub fn is_ap_protect_enabled(&self) -> bool {
+        // We need to understand the variant of this nRF52 chip to correctly
+        // implement this function. Newer versions use a different value to
+        // indicate disabled.
+        // let factory_config = ficr::Ficr::new();
+        // let disabled_val = if factory_config.has_updated_approtect_logic() {
+        //     ApProtect::PALL::HWDISABLE
+        // } else {
+        //     ApProtect::PALL::DISABLED
+        // };
+
+        // // Here we compare to the correct DISABLED value because any other value
+        // // should enable the protection.
+        // !self.registers.approtect.matches_all(disabled_val)
+        let reg_value = unsafe { core::ptr::read_volatile(0x5000_600C as *const u32) };
+        // debug!("APPROTECT: 0x{:08x}", reg_value);
+        reg_value != 0x00000000
+        // debug_println(");
     }
-
-    pub fn get_psel0_reset_pin(&self) -> Option<Pin> {
-        Pin::from_u32(self.registers.pselreset0.get())
-    }
-
-    pub fn set_psel1_reset_pin(&self, pin: Pin) {
-        self.registers.pselreset1.set(pin as u32);
-    }
-
-    pub fn get_psel1_reset_pin(&self) -> Option<Pin> {
-        Pin::from_u32(self.registers.pselreset1.get())
-    }
-
-    pub fn set_vout(&self, vout: Regulator0Output) {
-        self.registers.regout0.modify(RegOut::VOUT.val(vout as u32));
-    }
-
-    pub fn get_vout(&self) -> Regulator0Output {
-        Regulator0Output::from(self.registers.regout0.read(RegOut::VOUT))
-    }
-
-    pub fn set_nfc_pins_protection(&self, protected: bool) {
-        if protected {
-            self.registers.nfcpins.write(NfcPins::PROTECT::NFC);
-        } else {
-            self.registers.nfcpins.write(NfcPins::PROTECT::DISABLED);
-        }
-    }
-
-    pub fn is_nfc_pins_protection_enabled(&self) -> bool {
-        self.registers.nfcpins.matches_all(NfcPins::PROTECT::NFC)
-    }
-
-    // pub fn is_ap_protect_enabled(&self) -> bool {
-    //     // We need to understand the variant of this nRF52 chip to correctly
-    //     // implement this function. Newer versions use a different value to
-    //     // indicate disabled.
-    //     let factory_config = ficr::Ficr::new();
-    //     let disabled_val = if factory_config.has_updated_approtect_logic() {
-    //         ApProtect::PALL::HWDISABLE
-    //     } else {
-    //         ApProtect::PALL::DISABLED
-    //     };
-
-    //     // Here we compare to the correct DISABLED value because any other value
-    //     // should enable the protection.
-    //     !self.registers.approtect.matches_all(disabled_val)
-    // }
 
     // pub fn set_ap_protect(&self) {
     //     self.registers.approtect.write(ApProtect::PALL::ENABLED);
     // }
 
-    // / Disable the access port protection in the UICR register. This is stored
-    // / in flash and is persistent. This behavior can also be accomplished
-    // / outside of tock by running `nrfjprog --recover`.
-    // pub fn disable_ap_protect(&self) {
-    //     // We need to understand the variant of this nRF52 chip to correctly
-    //     // implement this function.
-    //     let factory_config = ficr::Ficr::new();
-    //     if factory_config.has_updated_approtect_logic() {
-    //         // Newer revisions of the chip require setting the APPROTECT
-    //         // register to `HwDisable`.
-    //         self.registers.approtect.write(ApProtect::PALL::HWDISABLE);
-    //     } else {
-    //         // All other revisions just use normal disable.
-    //         self.registers.approtect.write(ApProtect::PALL::DISABLED);
-    //     }
-    // }
+    /// Disable the access port protection in the UICR register. This is stored
+    /// in flash and is persistent. This behavior can also be accomplished
+    /// outside of tock by running `nrfjprog --recover`.
+    pub fn disable_ap_protect(&self) {
+        // We need to understand the variant of this nRF52 chip to correctly
+        // implement this function.
+        // let factory_config = ficr::Ficr::new();
+
+        // All other revisions just use normal disable.
+        // self.registers
+        //     .approtect
+        //     .write(ApProtect::ApProtectVals::CUSTOM);
+    }
 }

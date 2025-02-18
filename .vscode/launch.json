@@ -15,7 +15,7 @@
             // "preLaunchTask": "Build Tock",
             "postLaunchCommands": [
                 "monitor speed auto",
-                "monitor reset",
+                "monitor reset halt",
                 "b initialize_ram_jump_to_main",
                 "continue"
             ]

@@ -25,20 +25,37 @@ use kernel::utilities::StaticRef;
 
 const APPROTECT_BASE: StaticRef<DebuggerRegisters> =
     // The nrf52 used to have 0x40000000, the nrf53 has 0x50000000
-    unsafe { StaticRef::new(0x50000000 as *const DebuggerRegisters) };
+    unsafe { StaticRef::new(0x50006000 as *const DebuggerRegisters) };
 
 register_structs! {
     // CTRL-AP - Control access port
     DebuggerRegisters {
-        (0x000 => _system_reset_request),
-        (0x004 => _erase_all_request),
-        (0x008 => _erase_all_status),
-        (0x00C => _approtect_status),
-        (0x010 => approtect_disable: ReadWrite<u32, Disable::Register>),
-        (0x014 => _reserved0),
-        (0x018 => _reserved1),
-        (0x01C => _reserved2),
-        (0x020 => @END),
+        (0x000 => _reserved0),
+        (0x400 => _mailbox_rxdata),
+        (0x404 => _mailbox_rxstatus),
+        (0x408 => _reserved1),
+        (0x480 => _mailbox_txdata),
+        (0x484 => _mailbox_txstatus),
+        (0x484 => _reserved2),
+        (0x500 => _eraseprotect_lock),
+        (0x504 => _eraseprotect_disable),
+        (0x508 => _reserved3),
+        (0x540 => _approtect_lock),
+        (0x544 => approtect_disable: ReadWrite<u32, Disable::Register>),
+        (0x548 => _secureapprotect_lock),
+        (0x54C => secureapprotect_disable: ReadWrite<u32, Disable::Register>),
+        (0x550 => _reserved4),
+        (0x600 => _status),
+        (0x604 => @END),
+        // (0x000 => _system_reset_request),
+        // (0x004 => _erase_all_request),
+        // (0x008 => _erase_all_status),
+        // (0x00C => _approtect_status),
+        // (0x010 => approtect_disable: ReadWrite<u32, Disable::Register>),
+        // (0x014 => _reserved0),
+        // (0x018 => _reserved1),
+        // (0x01C => _reserved2),
+        // (0x020 => @END),
         // (0x550 => forceprotect: ReadWrite<u32, Forceprotect::Register>),
         // (0x554 => _reserved1),
         // (0x558 => disable: ReadWrite<u32, Disable::Register>),
@@ -54,8 +71,9 @@ register_bitfields! [u32,
     ],
     /// Access port protection
     Disable [
-        DISABLE OFFSET(0) NUMBITS(8) [
-            APPROTECT_SHARED_VALUE = 0x50FA50FA
+        DISABLE OFFSET(0) NUMBITS(32) [
+            DEFAULT = 0x50FA50FA,
+            CUSTOM = 0x69696969
         ]
     ]
 ];
@@ -84,7 +102,11 @@ impl Approtect {
         // I have deleted the checks from the nrf52 because I assume all nrf53 have approtect enabled by default
         self.registers
             .approtect_disable
-            .write(Disable::DISABLE::APPROTECT_SHARED_VALUE);
+            .write(Disable::DISABLE::CUSTOM);
+
+        self.registers
+            .secureapprotect_disable
+            .write(Disable::DISABLE::CUSTOM);
         // const DISABLE_KEY: u32 = 0x50FA50FA; // lets assume the
     }
 }
