@@ -1,0 +1,41 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Build Debug",
+        "type": "shell",
+        "command": "make debug",
+        "options": {
+          "cwd": "${workspaceFolder}/boards/nordic/nrf5340dk"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "Recover",
+        "type": "shell",
+        "command": "nrfjprog --recover",
+        "problemMatcher": []
+      },
+      {
+        "label": "Flash with Verify",
+        "type": "shell",
+        "command": "nrfjprog -d --program ${workspaceFolder}/target/thumbv8m.main-none-eabi/debug/nrf5340dk.bin  --chiperase --verify",
+        "problemMatcher": []
+      },
+      {
+        "label": "ball",
+        "dependsOn": [
+          "Build Debug",
+          "Recover",
+          "Flash with Verify"
+        ],
+        "dependsOrder": "sequence",
+        "problemMatcher": [],
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        }
+      }
+    ]
+  }
+  

@@ -16,7 +16,7 @@ use segger::rtt::SeggerRtt;
 
 pub struct NrfStartupComponent<'a> {
     nfc_as_gpios: bool,
-    button_rst_pin: Pin,
+    // button_rst_pin: Pin,
     reg_vout: Regulator0Output,
     nvmc: &'a nrf53::nvmc::Nvmc,
 }
@@ -24,13 +24,13 @@ pub struct NrfStartupComponent<'a> {
 impl<'a> NrfStartupComponent<'a> {
     pub fn new(
         nfc_as_gpios: bool,
-        button_rst_pin: Pin,
+        // button_rst_pin: Pin,
         reg_vout: Regulator0Output,
         nvmc: &'a nrf53::nvmc::Nvmc,
     ) -> Self {
         Self {
             nfc_as_gpios,
-            button_rst_pin,
+            // button_rst_pin,
             reg_vout,
             nvmc,
         }

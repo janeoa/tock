@@ -4,7 +4,7 @@
         {
             "name": "nRF53-DK Debug",
             "cwd": "${workspaceFolder}",
-            "executable": "/Users/assetmalik/dev/nrf52/tock/target/thumbv8m.main-none-eabi/debug/nrf5340dk.elf",
+            "executable": "${workspaceFolder}/target/thumbv8m.main-none-eabi/debug/nrf5340dk.elf",
             "request": "launch",
             "type": "cortex-debug",
             "servertype": "jlink",
@@ -12,13 +12,37 @@
             "interface": "swd",
             "runToEntryPoint": "main",
             "svdFile": "${env:HOME}/.vscode/nrf5340.svd",
+            "showDevDebugOutput": "raw",
             // "preLaunchTask": "Build Tock",
+            // "setupCommands": [
+            //     {
+            //         "text": "set substitute-path /Users/jane/dev/tock ${workspaceFolder}"
+            //     },
+            //     {
+            //         "text": "directory ${workspaceFolder}"
+            //     }
+            // ],
+            "preLaunchCommands": [
+                "set substitute-path /Users/jane/dev/tock ${workspaceFolder}",
+                "directory ${workspaceFolder}"
+            ],
             "postLaunchCommands": [
-                "monitor speed auto",
-                "monitor reset halt",
-                "b initialize_ram_jump_to_main",
-                "continue"
-            ]
+                // "monitor speed auto",
+                "monitor reset",
+                "monitor halt",
+                "b main",
+                // "break boards/nordic/nrf5340dk/src/lib.rs:471",
+                // "break chips/nrf53/src/uicr.rs:144",
+                "break kernel/src/process.rs:129",
+                // "continue"
+            ],
+            // "sourcePath": [
+            //     "${workspaceFolder}"
+            // ],
+            // For cortex-debug, we can use this to map paths in the executable to local paths
+            "rttConfig": {
+                "enabled": false
+            }
         }
     ]
 }

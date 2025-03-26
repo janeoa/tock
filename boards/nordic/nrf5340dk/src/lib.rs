@@ -73,8 +73,8 @@
 use core::ptr::addr_of;
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules_extra::net::ieee802154::MacAddress;
-use capsules_extra::net::ipv6::ip_utils::IPAddr;
+// use capsules_extra::net::ieee802154::MacAddress;
+// use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
@@ -89,46 +89,46 @@ use nrf5340::interrupt_service::Nrf5340DefaultPeripherals;
 use nrf53_components::{UartChannel, UartPins};
 
 // The nRF52840DK LEDs (see back of board)
-const LED1_PIN: Pin = Pin::P0_13;
-const LED2_PIN: Pin = Pin::P0_14;
-const LED3_PIN: Pin = Pin::P0_15;
-const LED4_PIN: Pin = Pin::P0_16;
+const LED1_PIN: Pin = Pin::P0_28;
+const LED2_PIN: Pin = Pin::P0_29;
+const LED3_PIN: Pin = Pin::P0_30;
+const LED4_PIN: Pin = Pin::P0_31;
 
 // The nRF52840DK buttons (see back of board)
 const BUTTON1_PIN: Pin = Pin::P0_23;
 const BUTTON2_PIN: Pin = Pin::P0_24;
 const BUTTON3_PIN: Pin = Pin::P0_08;
 const BUTTON4_PIN: Pin = Pin::P0_09;
-const BUTTON_RST_PIN: Pin = Pin::P0_18;
+// const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
 // const UART_RTS: Option<Pin> = Some(Pin::P0_05);
 // const UART_TXD: Pin = Pin::P0_06;
 // const UART_CTS: Option<Pin> = Some(Pin::P0_07);
 // const UART_RXD: Pin = Pin::P0_08;
-const UART_TXD: Pin = Pin::P0_18;
-const UART_RXD: Pin = Pin::P0_20;
-const UART_RTS: Option<Pin> = Some(Pin::P0_19);
-const UART_CTS: Option<Pin> = Some(Pin::P0_17);
+const UART_TXD: Pin = Pin::P1_01;
+const UART_RXD: Pin = Pin::P1_00;
+const UART_RTS: Option<Pin> = Some(Pin::P0_11);
+const UART_CTS: Option<Pin> = Some(Pin::P0_10);
 
-const SPI_MOSI: Pin = Pin::P0_20;
-const SPI_MISO: Pin = Pin::P0_21;
-const SPI_CLK: Pin = Pin::P0_19;
-const SPI_CS: Pin = Pin::P0_22;
+// const SPI_MOSI: Pin = Pin::P0_20;
+// const SPI_MISO: Pin = Pin::P0_21;
+// const SPI_CLK: Pin = Pin::P0_19;
+// const SPI_CS: Pin = Pin::P0_22;
 
-const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
-const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
-const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
+// const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
+// const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
+// const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
 
-/// I2C pins
-const I2C_SDA_PIN: Pin = Pin::P0_26;
-const I2C_SCL_PIN: Pin = Pin::P0_27;
+// /// I2C pins
+// const I2C_SDA_PIN: Pin = Pin::P0_26;
+// const I2C_SCL_PIN: Pin = Pin::P0_27;
 
 // Constants related to the configuration of the 15.4 network stack
-const PAN_ID: u16 = 0xABCD;
-const DST_MAC_ADDR: capsules_extra::net::ieee802154::MacAddress =
-    capsules_extra::net::ieee802154::MacAddress::Short(49138);
-const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
-const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0_u8; 16]; //Context for 6LoWPAN Compression
+// const PAN_ID: u16 = 0xABCD;
+// const DST_MAC_ADDR: capsules_extra::net::ieee802154::MacAddress =
+//     capsules_extra::net::ieee802154::MacAddress::Short(49138);
+// const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
+// const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0_u8; 16]; //Context for 6LoWPAN Compression
 
 /// Debug Writer
 pub mod io;
@@ -165,38 +165,38 @@ type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf5340::rtc::Rtc
 type RngDriver = components::rng::RngComponentType<nrf5340::trng::Trng<'static>>;
 
 // TicKV
-type Mx25r6435f = components::mx25r6435f::Mx25r6435fComponentType<
-    nrf5340::spi::SPIM<'static>,
-    nrf5340::gpio::GPIOPin<'static>,
-    nrf5340::rtc::Rtc<'static>,
->;
-const TICKV_PAGE_SIZE: usize =
-    core::mem::size_of::<<Mx25r6435f as kernel::hil::flash::Flash>::Page>();
-type Siphasher24 = components::siphash::Siphasher24ComponentType;
-type TicKVDedicatedFlash =
-    components::tickv::TicKVDedicatedFlashComponentType<Mx25r6435f, Siphasher24, TICKV_PAGE_SIZE>;
-type TicKVKVStore = components::kv::TicKVKVStoreComponentType<
-    TicKVDedicatedFlash,
-    capsules_extra::tickv::TicKVKeyType,
->;
-type KVStorePermissions = components::kv::KVStorePermissionsComponentType<TicKVKVStore>;
-type VirtualKVPermissions = components::kv::VirtualKVPermissionsComponentType<KVStorePermissions>;
-type KVDriver = components::kv::KVDriverComponentType<VirtualKVPermissions>;
+// type Mx25r6435f = components::mx25r6435f::Mx25r6435fComponentType<
+//     nrf5340::spi::SPIM<'static>,
+//     nrf5340::gpio::GPIOPin<'static>,
+//     nrf5340::rtc::Rtc<'static>,
+// >;
+// const TICKV_PAGE_SIZE: usize =
+//     core::mem::size_of::<<Mx25r6435f as kernel::hil::flash::Flash>::Page>();
+// type Siphasher24 = components::siphash::Siphasher24ComponentType;
+// type TicKVDedicatedFlash =
+//     components::tickv::TicKVDedicatedFlashComponentType<Mx25r6435f, Siphasher24, TICKV_PAGE_SIZE>;
+// type TicKVKVStore = components::kv::TicKVKVStoreComponentType<
+//     TicKVDedicatedFlash,
+//     capsules_extra::tickv::TicKVKeyType,
+// >;
+// type KVStorePermissions = components::kv::KVStorePermissionsComponentType<TicKVKVStore>;
+// type VirtualKVPermissions = components::kv::VirtualKVPermissionsComponentType<KVStorePermissions>;
+// type KVDriver = components::kv::KVDriverComponentType<VirtualKVPermissions>;
 
 // Temperature
 type TemperatureDriver =
     components::temperature::TemperatureComponentType<nrf5340::temperature::Temp<'static>>;
 
 // IEEE 802.15.4
-type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<
-    nrf5340::ieee802154_radio::Radio<'static>,
-    nrf5340::aes::AesECB<'static>,
->;
+// type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<
+//     nrf5340::ieee802154_radio::Radio<'static>,
+//     nrf5340::aes::AesECB<'static>,
+// >;
 /// Userspace 802.15.4 driver with in-kernel packet framing and MAC layer.
-pub type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
-    nrf5340::ieee802154_radio::Radio<'static>,
-    nrf5340::aes::AesECB<'static>,
->;
+// pub type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
+//     nrf5340::ieee802154_radio::Radio<'static>,
+//     nrf5340::aes::AesECB<'static>,
+// >;
 
 // EUI64
 /// Userspace EUI64 driver.
@@ -307,95 +307,95 @@ impl KernelResources<Chip> for Platform {
 }
 
 /// Create the capsules needed for the in-kernel UDP and 15.4 stack.
-pub unsafe fn ieee802154_udp(
-    board_kernel: &'static kernel::Kernel,
-    nrf5340_peripherals: &'static Nrf5340DefaultPeripherals<'static>,
-    mux_alarm: &'static MuxAlarm<nrf5340::rtc::Rtc>,
-) -> (
-    &'static Eui64Driver,
-    &'static Ieee802154Driver,
-    &'static capsules_extra::net::udp::UDPDriver<'static>,
-) {
-    //--------------------------------------------------------------------------
-    // AES
-    //--------------------------------------------------------------------------
+// pub unsafe fn ieee802154_udp(
+//     board_kernel: &'static kernel::Kernel,
+//     nrf5340_peripherals: &'static Nrf5340DefaultPeripherals<'static>,
+//     mux_alarm: &'static MuxAlarm<nrf5340::rtc::Rtc>,
+// ) -> (
+//     &'static Eui64Driver,
+//     &'static Ieee802154Driver,
+//     &'static capsules_extra::net::udp::UDPDriver<'static>,
+// ) {
+//     //--------------------------------------------------------------------------
+//     // AES
+//     //--------------------------------------------------------------------------
 
-    let aes_mux =
-        components::ieee802154::MuxAes128ccmComponent::new(&nrf5340_peripherals.nrf53.ecb)
-            .finalize(components::mux_aes128ccm_component_static!(
-                nrf5340::aes::AesECB
-            ));
+//     let aes_mux =
+//         components::ieee802154::MuxAes128ccmComponent::new(&nrf5340_peripherals.nrf53.ecb)
+//             .finalize(components::mux_aes128ccm_component_static!(
+//                 nrf5340::aes::AesECB
+//             ));
 
-    //--------------------------------------------------------------------------
-    // 802.15.4
-    //--------------------------------------------------------------------------
+//     //--------------------------------------------------------------------------
+//     // 802.15.4
+//     //--------------------------------------------------------------------------
 
-    // let device_id = nrf5340::ficr::FICR_INSTANCE.id();
-    let device_id = (*addr_of!(nrf5340::ficr::FICR_INSTANCE)).id();
-    let device_id_bottom_16: u16 = u16::from_le_bytes([device_id[0], device_id[1]]);
+//     // let device_id = nrf5340::ficr::FICR_INSTANCE.id();
+//     let device_id = (*addr_of!(nrf5340::ficr::FICR_INSTANCE)).id();
+//     let device_id_bottom_16: u16 = u16::from_le_bytes([device_id[0], device_id[1]]);
 
-    let eui64_driver = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
-        .finalize(components::eui64_component_static!());
+//     let eui64_driver = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
+//         .finalize(components::eui64_component_static!());
 
-    let (ieee802154_driver, mux_mac) = components::ieee802154::Ieee802154Component::new(
-        board_kernel,
-        capsules_extra::ieee802154::DRIVER_NUM,
-        &nrf5340_peripherals.ieee802154_radio,
-        aes_mux,
-        PAN_ID,
-        device_id_bottom_16,
-        device_id,
-    )
-    .finalize(components::ieee802154_component_static!(
-        nrf5340::ieee802154_radio::Radio,
-        nrf5340::aes::AesECB<'static>
-    ));
+// let (ieee802154_driver, mux_mac) = components::ieee802154::Ieee802154Component::new(
+//     board_kernel,
+//     capsules_extra::ieee802154::DRIVER_NUM,
+//     &nrf5340_peripherals.ieee802154_radio,
+//     aes_mux,
+//     PAN_ID,
+//     device_id_bottom_16,
+//     device_id,
+// )
+// .finalize(components::ieee802154_component_static!(
+//     nrf5340::ieee802154_radio::Radio,
+//     nrf5340::aes::AesECB<'static>
+// ));
 
-    //--------------------------------------------------------------------------
-    // UDP
-    //--------------------------------------------------------------------------
+//--------------------------------------------------------------------------
+// UDP
+//--------------------------------------------------------------------------
 
-    let local_ip_ifaces = static_init!(
-        [IPAddr; 3],
-        [
-            IPAddr::generate_from_mac(capsules_extra::net::ieee802154::MacAddress::Long(device_id)),
-            IPAddr([
-                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
-                0x1e, 0x1f,
-            ]),
-            IPAddr::generate_from_mac(capsules_extra::net::ieee802154::MacAddress::Short(
-                device_id_bottom_16
-            )),
-        ]
-    );
+//     let local_ip_ifaces = static_init!(
+//         [IPAddr; 3],
+//         [
+//             IPAddr::generate_from_mac(capsules_extra::net::ieee802154::MacAddress::Long(device_id)),
+//             IPAddr([
+//                 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+//                 0x1e, 0x1f,
+//             ]),
+//             IPAddr::generate_from_mac(capsules_extra::net::ieee802154::MacAddress::Short(
+//                 device_id_bottom_16
+//             )),
+//         ]
+//     );
 
-    let (udp_send_mux, udp_recv_mux, udp_port_table) = components::udp_mux::UDPMuxComponent::new(
-        mux_mac,
-        DEFAULT_CTX_PREFIX_LEN,
-        DEFAULT_CTX_PREFIX,
-        DST_MAC_ADDR,
-        MacAddress::Long(device_id),
-        local_ip_ifaces,
-        mux_alarm,
-    )
-    .finalize(components::udp_mux_component_static!(
-        nrf5340::rtc::Rtc,
-        Ieee802154MacDevice
-    ));
+//     let (udp_send_mux, udp_recv_mux, udp_port_table) = components::udp_mux::UDPMuxComponent::new(
+//         mux_mac,
+//         DEFAULT_CTX_PREFIX_LEN,
+//         DEFAULT_CTX_PREFIX,
+//         DST_MAC_ADDR,
+//         MacAddress::Long(device_id),
+//         local_ip_ifaces,
+//         mux_alarm,
+//     )
+//     .finalize(components::udp_mux_component_static!(
+//         nrf5340::rtc::Rtc,
+//         Ieee802154MacDevice
+//     ));
 
-    // UDP driver initialization happens here
-    let udp_driver = components::udp_driver::UDPDriverComponent::new(
-        board_kernel,
-        capsules_extra::net::udp::driver::DRIVER_NUM,
-        udp_send_mux,
-        udp_recv_mux,
-        udp_port_table,
-        local_ip_ifaces,
-    )
-    .finalize(components::udp_driver_component_static!(nrf5340::rtc::Rtc));
+//     // UDP driver initialization happens here
+//     let udp_driver = components::udp_driver::UDPDriverComponent::new(
+//         board_kernel,
+//         capsules_extra::net::udp::driver::DRIVER_NUM,
+//         udp_send_mux,
+//         udp_recv_mux,
+//         udp_port_table,
+//         local_ip_ifaces,
+//     )
+//     .finalize(components::udp_driver_component_static!(nrf5340::rtc::Rtc));
 
-    (eui64_driver, ieee802154_driver, udp_driver)
-}
+//     (eui64_driver, ieee802154_driver, udp_driver)
+// }
 
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
@@ -417,14 +417,15 @@ pub unsafe fn start() -> (
 
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
-    let ieee802154_ack_buf = static_init!(
-        [u8; nrf5340::ieee802154_radio::ACK_BUF_SIZE],
-        [0; nrf5340::ieee802154_radio::ACK_BUF_SIZE]
-    );
+    // let ieee802154_ack_buf = static_init!(
+    //     [u8; nrf5340::ieee802154_radio::ACK_BUF_SIZE],
+    //     [0; nrf5340::ieee802154_radio::ACK_BUF_SIZE]
+    // );
     // Initialize chip peripheral drivers
     let nrf5340_peripherals = static_init!(
         Nrf5340DefaultPeripherals,
-        Nrf5340DefaultPeripherals::new(ieee802154_ack_buf)
+        // Nrf5340DefaultPeripherals::new(ieee802154_ack_buf)
+        Nrf5340DefaultPeripherals::new()
     );
 
     // Set up circular peripheral dependencies.
@@ -470,7 +471,7 @@ pub unsafe fn start() -> (
     // platforms.
     nrf53_components::startup::NrfStartupComponent::new(
         false,
-        BUTTON_RST_PIN,
+        // BUTTON_RST_PIN,
         nrf5340::uicr::Regulator0Output::DEFAULT,
         &base_peripherals.nvmc,
     );
@@ -483,7 +484,7 @@ pub unsafe fn start() -> (
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let gpio_port = &nrf5340_peripherals.gpio_port;
+    // let gpio_port = &nrf5340_peripherals.gpio_port;
 
     //--------------------------------------------------------------------------
     // GPIO
@@ -495,14 +496,14 @@ pub unsafe fn start() -> (
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             nrf5340::gpio::GPIOPin,
-            0 => &nrf5340_peripherals.gpio_port[Pin::P1_01],
-            1 => &nrf5340_peripherals.gpio_port[Pin::P1_02],
-            2 => &nrf5340_peripherals.gpio_port[Pin::P1_03],
-            3 => &nrf5340_peripherals.gpio_port[Pin::P1_04],
-            4 => &nrf5340_peripherals.gpio_port[Pin::P1_05],
-            5 => &nrf5340_peripherals.gpio_port[Pin::P1_06],
-            6 => &nrf5340_peripherals.gpio_port[Pin::P1_07],
-            7 => &nrf5340_peripherals.gpio_port[Pin::P1_08],
+            // 0 => &nrf5340_peripherals.gpio_port[Pin::P1_01],
+            // 1 => &nrf5340_peripherals.gpio_port[Pin::P1_02],
+            // 2 => &nrf5340_peripherals.gpio_port[Pin::P1_03],
+            // 3 => &nrf5340_peripherals.gpio_port[Pin::P1_04],
+            // 4 => &nrf5340_peripherals.gpio_port[Pin::P1_05],
+            // 5 => &nrf5340_peripherals.gpio_port[Pin::P1_06],
+            // 6 => &nrf5340_peripherals.gpio_port[Pin::P1_07],
+            // 7 => &nrf5340_peripherals.gpio_port[Pin::P1_08],
             // Avoid exposing the I2C pins to userspace, as these are used in
             // some tutorials (e.g., `nrf5340dk-thread-tutorial`).
             //
@@ -510,10 +511,10 @@ pub unsafe fn start() -> (
             //
             // 8 => &nrf5340_peripherals.gpio_port[Pin::P1_10],
             // 9 => &nrf5340_peripherals.gpio_port[Pin::P1_11],
-            10 => &nrf5340_peripherals.gpio_port[Pin::P1_12],
-            11 => &nrf5340_peripherals.gpio_port[Pin::P1_13],
-            12 => &nrf5340_peripherals.gpio_port[Pin::P1_14],
-            13 => &nrf5340_peripherals.gpio_port[Pin::P1_15],
+            // 10 => &nrf5340_peripherals.gpio_port[Pin::P1_12],
+            // 11 => &nrf5340_peripherals.gpio_port[Pin::P1_13],
+            // 12 => &nrf5340_peripherals.gpio_port[Pin::P1_14],
+            // 13 => &nrf5340_peripherals.gpio_port[Pin::P1_15],
         ),
     )
     .finalize(components::gpio_component_static!(nrf5340::gpio::GPIOPin));

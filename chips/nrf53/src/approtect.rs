@@ -102,11 +102,11 @@ impl Approtect {
         // I have deleted the checks from the nrf52 because I assume all nrf53 have approtect enabled by default
         self.registers
             .approtect_disable
-            .write(Disable::DISABLE::CUSTOM);
+            .write(Disable::DISABLE::DEFAULT);
 
         self.registers
             .secureapprotect_disable
-            .write(Disable::DISABLE::CUSTOM);
+            .write(Disable::DISABLE::DEFAULT);
         // const DISABLE_KEY: u32 = 0x50FA50FA; // lets assume the
     }
 }

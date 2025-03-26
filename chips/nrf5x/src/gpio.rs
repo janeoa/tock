@@ -34,10 +34,14 @@ const NUM_GPIOTE: usize = 4;
 const GPIO_PER_PORT: usize = 32;
 
 const GPIOTE_BASE: StaticRef<GpioteRegisters> =
-    unsafe { StaticRef::new(0x40006000 as *const GpioteRegisters) };
+    // unsafe { StaticRef::new(0x40006000 as *const GpioteRegisters) };
+    unsafe { StaticRef::new(0x5000D000 as *const GpioteRegisters) };
 
-const GPIO_BASE_ADDRESS: usize = 0x50000000;
-const GPIO_SIZE: usize = 0x300;
+const GPIO_PORT0_BASE_ADDRESS: usize = 0x50842500;
+const GPIO_PORT1_BASE_ADDRESS: usize = 0x50842800;
+
+// const GPIO_TOTAL_SIZE: usize = 0x600;
+const GPIO_PORT_SIZE: usize = 0x300; // Size for each port
 
 /// The nRF5x doesn't automatically provide GPIO interrupts. Instead, to receive
 /// interrupts from a GPIO line, you must allocate a GPIOTE (GPIO Task and
@@ -87,7 +91,7 @@ struct GpioteRegisters {
 #[repr(C)]
 struct GpioRegisters {
     /// Reserved
-    _reserved1: [u32; 321],
+    // _reserved1: [u32; 321],
     /// Write GPIO port
     /// - Address: 0x504 - 0x508
     out: ReadWrite<u32, Out::Register>,
@@ -370,13 +374,19 @@ pub struct GPIOPin<'a> {
 
 impl<'a> GPIOPin<'a> {
     pub const fn new(pin: Pin) -> GPIOPin<'a> {
+        // let port_base_address = match pin as usize {
+        //     0..=31 => GPIO_PORT0_BASE_ADDRESS,
+        //     32..64 => GPIO_PORT1_BASE_ADDRESS,
+        //     _ => panic!("Invalid GPIO port"),
+        // };
+
         GPIOPin {
             pin: ((pin as usize) % GPIO_PER_PORT) as u8,
             port: ((pin as usize) / GPIO_PER_PORT) as u8,
             client: OptionalCell::empty(),
             gpio_registers: unsafe {
                 StaticRef::new(
-                    (GPIO_BASE_ADDRESS + ((pin as usize) / GPIO_PER_PORT) * GPIO_SIZE)
+                    (GPIO_PORT0_BASE_ADDRESS + ((pin as usize) / GPIO_PER_PORT) * GPIO_PORT_SIZE)
                         as *const GpioRegisters,
                 )
             },

@@ -29,7 +29,7 @@ impl<'a, I: InterruptService + 'a> NRF53<'a, I> {
 /// constructed manually in main.rs.
 pub struct Nrf53DefaultPeripherals<'a> {
     pub acomp: crate::acomp::Comparator<'a>,
-    pub ecb: crate::aes::AesECB<'a>,
+    // pub ecb: crate::aes::AesECB<'a>,
     pub pwr_clk: crate::power::Power<'a>,
     pub ble_radio: crate::ble_radio::Radio<'a>,
     pub trng: crate::trng::Trng<'a>,
@@ -52,7 +52,7 @@ impl<'a> Nrf53DefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
             acomp: crate::acomp::Comparator::new(),
-            ecb: crate::aes::AesECB::new(),
+            // ecb: crate::aes::AesECB::new(),
             pwr_clk: crate::power::Power::new(),
             ble_radio: crate::ble_radio::Radio::new(),
             trng: crate::trng::Trng::new(),
@@ -81,7 +81,7 @@ impl<'a> kernel::platform::chip::InterruptService for Nrf53DefaultPeripherals<'a
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             crate::peripheral_interrupts::COMP => self.acomp.handle_interrupt(),
-            crate::peripheral_interrupts::ECB => self.ecb.handle_interrupt(),
+            // crate::peripheral_interrupts::ECB => self.ecb.handle_interrupt(),
             crate::peripheral_interrupts::POWER_CLOCK => self.pwr_clk.handle_interrupt(),
             crate::peripheral_interrupts::RADIO => match self.ble_radio.is_enabled() {
                 false => (),
