@@ -41,7 +41,7 @@ impl<'a> kernel::platform::chip::InterruptService for Nrf5340DefaultPeripherals<
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             crate::peripheral_interrupts::USBD => self.usbd.handle_interrupt(),
-            nrf53::peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),
+            // nrf53::peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),
             // nrf53::peripheral_interrupts::RADIO => {
             //     match (
             //         // self.ieee802154_radio.is_enabled(),

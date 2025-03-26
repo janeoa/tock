@@ -80,24 +80,31 @@ impl<'a> Nrf53DefaultPeripherals<'a> {
 impl<'a> kernel::platform::chip::InterruptService for Nrf53DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            crate::peripheral_interrupts::COMP => self.acomp.handle_interrupt(),
-            // crate::peripheral_interrupts::ECB => self.ecb.handle_interrupt(),
             crate::peripheral_interrupts::POWER_CLOCK => self.pwr_clk.handle_interrupt(),
-            crate::peripheral_interrupts::RADIO => match self.ble_radio.is_enabled() {
-                false => (),
-                true => self.ble_radio.handle_interrupt(),
-            },
-            crate::peripheral_interrupts::RNG => self.trng.handle_interrupt(),
+            crate::peripheral_interrupts::UART0 => self.uarte0.handle_interrupt(),
+
+            crate::peripheral_interrupts::RTC0 => self.rtc.handle_interrupt(),
             crate::peripheral_interrupts::RTC1 => self.rtc.handle_interrupt(),
-            crate::peripheral_interrupts::TEMP => self.temp.handle_interrupt(),
+
+            crate::peripheral_interrupts::COMP => self.acomp.handle_interrupt(),
+
+            crate::peripheral_interrupts::ADC => self.adc.handle_interrupt(),
             crate::peripheral_interrupts::TIMER0 => self.timer0.handle_interrupt(),
             crate::peripheral_interrupts::TIMER1 => self.timer1.handle_interrupt(),
             crate::peripheral_interrupts::TIMER2 => self.timer2.handle_interrupt(),
-            crate::peripheral_interrupts::UART0 => self.uarte0.handle_interrupt(),
-            crate::peripheral_interrupts::SPI0_TWI0 => self.spim0.handle_interrupt(),
-            crate::peripheral_interrupts::SPI1_TWI1 => self.twi1.handle_interrupt(),
-            crate::peripheral_interrupts::SPIM2_SPIS2_SPI2 => self.spim2.handle_interrupt(),
-            crate::peripheral_interrupts::ADC => self.adc.handle_interrupt(),
+
+            // crate::peripheral_interrupts::UARTE0 => self.uarte0.handle_interrupt(),
+            // crate::peripheral_interrupts::SPI0_TWI0 => self.spim0.handle_interrupt(),
+            // crate::peripheral_interrupts::SPI1_TWI1 => self.twi1.handle_interrupt(),
+            // crate::peripheral_interrupts::SPIM2_SPIS2_SPI2 => self.spim2.handle_interrupt(),
+
+            // crate::peripheral_interrupts::RADIO => match self.ble_radio.is_enabled() {
+            //     false => (),
+            //     true => self.ble_radio.handle_interrupt(),
+            // },
+            // crate::peripheral_interrupts::RNG => self.trng.handle_interrupt(),
+            // crate::peripheral_interrupts::TEMP => self.temp.handle_interrupt(),
+            // crate::peripheral_interrupts::ECB => self.ecb.handle_interrupt(),
             _ => return false,
         }
         true

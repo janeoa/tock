@@ -422,19 +422,19 @@ impl Ficr {
     }
 }
 
-impl fmt::Display for Ficr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "NRF52 HW INFO: Variant: {:?}, Part: {:?}, Package: {:?}, Ram: {:?}, Flash: {:?}",
-            self.variant(),
-            self.part(),
-            self.package(),
-            self.ram(),
-            self.flash()
-        )
-    }
-}
+// impl fmt::Display for Ficr {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(
+//             f,
+//             "NRF52 HW INFO: Variant: {:?}, Part: {:?}, Package: {:?}, Ram: {:?}, Flash: {:?}",
+//             self.variant(),
+//             self.part(),
+//             self.package(),
+//             self.ram(),
+//             self.flash()
+//         )
+//     }
+// }
 
 /// Static instance for the board. Only one (read-only) set of factory registers.
 pub static mut FICR_INSTANCE: Ficr = Ficr::new();

@@ -920,7 +920,7 @@ pub unsafe fn start() -> (
     base_peripherals.adc.calibrate();
 
     debug!("Initialization complete. Entering main loop\r");
-    debug!("{}", &*addr_of!(nrf5340::ficr::FICR_INSTANCE));
+    // debug!("{}", &*addr_of!(nrf5340::ficr::FICR_INSTANCE));
 
     (board_kernel, platform, chip, nrf5340_peripherals, mux_alarm)
 }

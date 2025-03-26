@@ -110,7 +110,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    debug!("Informational message\n");
+    debug!("owo\n");
 
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
