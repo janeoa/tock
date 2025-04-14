@@ -30,7 +30,20 @@ flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 flash-openocd: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) --board nrf52dk --openocd $<
 
+.PHONY: flash-nrfjprog-debug
+flash-nrfjprog-debug: 
+	nrfjprog -d --program $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).bin || exit 1
+
 # Upload the kernel over serial/bootloader
 .PHONY: program
 program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).hex
 	$(error Cannot program nRF5340DK over USB. Use \`make flash\` and JTAG)
+
+.PHONY: mrproper
+mrproper:
+	nrfjprog --recover  || exit 1;
+	nrfjprog --eraseall || exit 1;
+	rm -rf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug || exit 1;
+
+.PHONY: reflash-debug
+reflash-debug: mrproper debug flash-nrfjprog-debug
