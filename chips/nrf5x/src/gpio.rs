@@ -92,6 +92,8 @@ struct GpioteRegisters {
 struct GpioRegisters {
     /// Reserved
     // _reserved1: [u32; 321],
+    #[cfg(feature = "nrf53")]
+    _reserved1: [u32; 1],
     /// Write GPIO port
     /// - Address: 0x504 - 0x508
     out: ReadWrite<u32, Out::Register>,
@@ -125,9 +127,16 @@ struct GpioRegisters {
     /// - Address: 0x524 - 0x528
     #[cfg(any(feature = "nrf52", feature = "nrf53"))]
     detect_mode: ReadWrite<u32, DetectMode::Register>,
+
+    #[cfg(feature = "nrf53")]
+    detect_mode_sec: ReadWrite<u32, DetectMode::Register>,
+
     /// Reserved
-    #[cfg(any(feature = "nrf52", feature = "nrf53"))]
+    #[cfg(feature = "nrf52")]
     _reserved2: [u32; 118],
+
+    #[cfg(feature = "nrf53")]
+    _reserved2: [u32; 117],
     /// Configuration of GPIO pins
     pin_cnf: [ReadWrite<u32, PinConfig::Register>; 32],
 }
