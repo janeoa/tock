@@ -204,12 +204,12 @@ pub type Eui64Driver = components::eui64::Eui64ComponentType;
 
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
-        'static,
-        nrf5340::ble_radio::Radio<'static>,
-        VirtualMuxAlarm<'static, nrf5340::rtc::Rtc<'static>>,
-    >,
-    button: &'static capsules_core::button::Button<'static, nrf5340::gpio::GPIOPin<'static>>,
+    // ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
+    // 'static,
+    // nrf5340::ble_radio::Radio<'static>,
+    // VirtualMuxAlarm<'static, nrf5340::rtc::Rtc<'static>>,
+    // >,
+    // button: &'static capsules_core::button::Button<'static, nrf5340::gpio::GPIOPin<'static>>,
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
         { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
@@ -223,9 +223,9 @@ pub struct Platform {
         kernel::hil::led::LedLow<'static, nrf5340::gpio::GPIOPin<'static>>,
         4,
     >,
-    rng: &'static RngDriver,
-    adc: &'static capsules_core::adc::AdcDedicated<'static, nrf5340::adc::Adc<'static>>,
-    temp: &'static TemperatureDriver,
+    // rng: &'static RngDriver,
+    // adc: &'static capsules_core::adc::AdcDedicated<'static, nrf5340::adc::Adc<'static>>,
+    // temp: &'static TemperatureDriver,
     /// The IPC driver.
     pub ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     // analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
@@ -259,11 +259,11 @@ impl SyscallDriverLookup for Platform {
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
-            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
-            capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
+            // capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            // capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+            // capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+            // capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            // capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
             // capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             // capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
@@ -669,26 +669,26 @@ pub unsafe fn start() -> (
     // ADC
     //--------------------------------------------------------------------------
 
-    let adc_channels = static_init!(
-        [nrf5340::adc::AdcChannelSetup; 6],
-        [
-            nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput1),
-            nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput2),
-            nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput4),
-            nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput5),
-            nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput6),
-            nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput7),
-        ]
-    );
-    let adc = components::adc::AdcDedicatedComponent::new(
-        &base_peripherals.adc,
-        adc_channels,
-        board_kernel,
-        capsules_core::adc::DRIVER_NUM,
-    )
-    .finalize(components::adc_dedicated_component_static!(
-        nrf5340::adc::Adc
-    ));
+    // let adc_channels = static_init!(
+    //     [nrf5340::adc::AdcChannelSetup; 6],
+    //     [
+    //         nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput1),
+    //         nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput2),
+    //         nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput4),
+    //         nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput5),
+    //         nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput6),
+    //         nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput7),
+    //     ]
+    // );
+    // let adc = components::adc::AdcDedicatedComponent::new(
+    //     &base_peripherals.adc,
+    //     adc_channels,
+    //     board_kernel,
+    //     capsules_core::adc::DRIVER_NUM,
+    // )
+    // .finalize(components::adc_dedicated_component_static!(
+    //     nrf5340::adc::Adc
+    // ));
 
     //--------------------------------------------------------------------------
     // SPI
@@ -893,15 +893,15 @@ pub unsafe fn start() -> (
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
-        button,
-        ble_radio,
+        // button,
+        // ble_radio,
         pconsole,
         console,
         led,
         gpio,
-        rng,
-        adc,
-        temp,
+        // rng,
+        // adc,
+        // temp,
         alarm,
         // analog_comparator,
         ipc: kernel::ipc::IPC::new(
@@ -916,8 +916,8 @@ pub unsafe fn start() -> (
         systick: cortexm33::systick::SysTick::new_with_calibration(64000000),
     };
 
-    let _ = platform.pconsole.start();
-    base_peripherals.adc.calibrate();
+    // let _ = platform.pconsole.start();
+    // base_peripherals.adc.calibrate();
 
     debug!("Initialization complete. Entering main loop\r");
     // debug!("{}", &*addr_of!(nrf5340::ficr::FICR_INSTANCE));
