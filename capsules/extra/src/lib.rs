@@ -107,6 +107,7 @@ pub mod text_screen;
 pub mod tickv;
 pub mod tickv_kv_store;
 pub mod touch;
+pub mod usb_ctap;
 pub mod tsl2561;
 pub mod usb;
 pub mod usb_hid_driver;

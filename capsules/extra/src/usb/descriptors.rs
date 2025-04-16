@@ -573,8 +573,10 @@ impl Default for ConfigurationDescriptor {
             num_interfaces: 1,
             configuration_value: 1,
             string_index: 0,
-            attributes: ConfigurationAttributes::new(true, false),
-            max_power: 0, // in 2mA units
+            // attributes: ConfigurationAttributes::new(true, false),
+            attributes: ConfigurationAttributes::new(false, false),
+            // max_power: 0, // in 2mA units
+            max_power: 50, // in 2mA units
             related_descriptor_length: 0,
         }
     }
