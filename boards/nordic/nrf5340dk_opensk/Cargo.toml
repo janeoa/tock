@@ -1,0 +1,17 @@
+[package]
+name = "nrf5340dk_opensk"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+build = "build.rs"
+edition = "2018"
+
+[dependencies]
+components = { path = "../../components" }
+cortexm4 = { path = "../../../arch/cortex-m4" }
+capsules = { path = "../../../capsules" }
+kernel = { path = "../../../kernel" }
+nrf5340 = { path = "../../../chips/nrf5340" }
+nrf53_components = { path = "../nrf53_components" }
+
+[features]
+vendor_hid = ["capsules/vendor_hid"]

@@ -15,7 +15,7 @@ rv32i = { path = "../../../arch/rv32i" }
 kernel = { path = "../../../kernel" }
 litex_vexriscv = { path = "../../../chips/litex_vexriscv" }
 
-capsules-core = { path = "../../../capsules/core" }
+capsules_core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
 capsules-system = { path = "../../../capsules/system" }
 

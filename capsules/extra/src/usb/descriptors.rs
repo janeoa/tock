@@ -426,7 +426,8 @@ pub fn create_descriptor_buffers(
     mut configuration_descriptor: ConfigurationDescriptor,
     interface_descriptor: &mut [InterfaceDescriptor],
     endpoint_descriptors: &[&[EndpointDescriptor]],
-    hid_descriptor: Option<&HIDDescriptor>,
+    // hid_descriptor: Option<&HIDDescriptor>,
+    hid_descriptor: Option<&[&HIDDescriptor<'static>]>,
     cdc_descriptor: Option<&[CdcInterfaceDescriptor]>,
 ) -> (DeviceBuffer, DescriptorBuffer) {
     // Create device descriptor buffer and fill.
@@ -510,7 +511,7 @@ pub fn create_descriptor_buffers(
                 .iter()
                 .map(|descs| descs.iter().map(|d| d.size()).sum::<usize>())
                 .sum::<usize>()
-            + hid_descriptor.map_or(0, |d| d.size())
+            + hid_descriptor.map_or(0, |ds| ds.iter().map(|d| d.size()).sum::<usize>())
             + cdc_descriptor.map_or(0, |ds| ds.iter().map(|d| d.size()).sum::<usize>());
 
     // Set the number of endpoints for each interface descriptor.
@@ -527,12 +528,10 @@ pub fn create_descriptor_buffers(
         // Add the interface descriptor.
         len += d.write_to(&other_buf.buf[len..]);
 
-        // If there is a HID descriptor, we include
-        // it with the first interface descriptor.
-        if i == 0 {
-            // HID descriptor, if any.
-            if let Some(dh) = hid_descriptor {
-                len += dh.write_to(&other_buf.buf[len..]);
+        // HID descriptor, if present, for this interface.
+        if let Some(dh) = hid_descriptor {
+            if let Some(d) = dh.get(i) {
+                len += d.write_to(&other_buf.buf[len..]);
             }
         }
 

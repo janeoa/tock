@@ -11,7 +11,7 @@ edition.workspace = true
 [dependencies]
 kernel = { path = "../../kernel" }
 
-capsules-core = { path = "../../capsules/core" }
+capsules_core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 segger = { path = "../../chips/segger" }

@@ -17,7 +17,7 @@ earlgrey = { path = "../../../chips/earlgrey" }
 lowrisc = { path = "../../../chips/lowrisc" }
 tock-tbf = { path = "../../../libraries/tock-tbf" }
 
-capsules-core = { path = "../../../capsules/core" }
+capsules_core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
 capsules-aes-gcm = { path = "../../../capsules/aes_gcm" }
 capsules-system = { path = "../../../capsules/system" }

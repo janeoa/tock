@@ -1,6 +1,6 @@
 //! A USB HID client of the USB hardware interface
 
-use super::app::App;
+use crate::app::App;
 use super::descriptors;
 use super::descriptors::Buffer64;
 use super::descriptors::DescriptorType;

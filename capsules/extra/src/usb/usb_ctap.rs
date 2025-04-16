@@ -1,4 +1,4 @@
-use super::app::{App, Side};
+use crate::app::{App, Side};
 use super::usbc_ctap_hid::ClientCtapHID;
 use kernel::errorcode::ErrorCode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
@@ -9,7 +9,7 @@ use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::ProcessId;
 
 /// Syscall number
-use crate::driver;
+use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::UsbCtap as usize;
 
 pub const CTAP_CMD_CHECK: usize = 0;

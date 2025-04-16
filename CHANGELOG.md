@@ -86,7 +86,7 @@ new platforms, new drivers, and major refactors.
   - Tock 2.2 introduces [a new policy to support external
     dependencies][external-deps] in the upstream Tock codebase. As part of this
     effort, we split up the existing, single `capsules` crate into multipe
-    crates (such as `capsules-core`, `capsules-extra`, and `capsules-system`)
+    crates (such as `capsules_core`, `capsules-extra`, and `capsules-system`)
     with different guarantees concerning stability and use of external
     dependencies. The `core` capsules crate contains capsules deemed essential
     to most Tock systems, as well as virtualizers which enable a given single

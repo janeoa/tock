@@ -3,7 +3,7 @@
 # Copyright Tock Contributors 2023.
 
 [package]
-name = "capsules-core"
+name = "capsules_core"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

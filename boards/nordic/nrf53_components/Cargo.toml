@@ -15,7 +15,7 @@ kernel = { path = "../../../kernel" }
 nrf53 = { path = "../../../chips/nrf53" }
 segger = { path = "../../../chips/segger" }
 
-capsules-core = { path = "../../../capsules/core" }
+capsules_core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
 capsules-system = { path = "../../../capsules/system" }
 

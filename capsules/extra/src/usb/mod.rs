@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-pub mod app;
 pub mod cdc;
 pub mod ctap;
 pub mod descriptors;

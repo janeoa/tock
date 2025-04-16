@@ -25,7 +25,7 @@ nrf5340 = { path = "../../../chips/nrf5340" }
 segger = { path = "../../../chips/segger" }
 nrf53_components = { path = "../nrf53_components" }
 
-capsules-core = { path = "../../../capsules/core" }
+capsules_core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
 capsules-system = { path = "../../../capsules/system" }
 
