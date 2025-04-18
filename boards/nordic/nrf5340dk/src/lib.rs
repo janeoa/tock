@@ -75,6 +75,8 @@ use core::ptr::addr_of;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 // use capsules_extra::net::ieee802154::MacAddress;
 // use capsules_extra::net::ipv6::ip_utils::IPAddr;
+// use crate::usb_ctap;
+use capsules_extra::usb_ctap;
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
@@ -87,6 +89,21 @@ use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, 
 use nrf5340::gpio::Pin;
 use nrf5340::interrupt_service::Nrf5340DefaultPeripherals;
 use nrf53_components::{UartChannel, UartPins};
+
+const VENDOR_ID: u16 = 0x1915; // Nordic Semiconductor
+const PRODUCT_ID: u16 = 0x521f; // nRF5340 Dongle (PCA10059)
+static STRINGS: &'static [&'static str] = &[
+    // Manufacturer
+    "Nordic Semiconductor ASA",
+    // Product
+    "OpenSK",
+    // Serial number
+    "v1.0",
+    // Interface description + main HID string
+    "FIDO2",
+    // vendor HID string
+    "Vendor HID",
+];
 
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_28;
@@ -245,6 +262,13 @@ pub struct Platform {
     //     >,
     // >,
     // kv_driver: &'static KVDriver,
+    // usb: &'static components::usb_ctap::UsbCtapComponent<'static>,
+    // usb: &'static capsules::usb::usb_ctap::CtapUsbSyscallDriver<
+    usb: &'static capsules_extra::usb::usb_ctap::CtapUsbSyscallDriver<
+        'static,
+        'static,
+        nrf5340::usbd::Usbd<'static>,
+    >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm33::systick::SysTick,
 }
@@ -259,6 +283,8 @@ impl SyscallDriverLookup for Platform {
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            // capsules_extra::usb_ctap::DRIVER_NUM => f(Some(self.usb)),
+            capsules_extra::usb::usb_ctap::DRIVER_NUM => f(Some(self.usb)),
             // capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             // capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             // capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
@@ -843,6 +869,21 @@ pub unsafe fn start() -> (
     //--------------------------------------------------------------------------
     // Uncomment to experiment with this.
 
+    // let usb = components::usb_ctap::UsbCtapComponent::new(
+    // let usb = capsules_extra::usb_ctap::UsbCtapComponent::new(
+    let usb = components::usb_ctap::UsbCtapComponent::new(
+        board_kernel,
+        // capsules::usb::usb_ctap::DRIVER_NUM,
+        usb_ctap::DRIVER_NUM,
+        &nrf5340_peripherals.usbd,
+        // capsules_extra::usb::usbc_client::MAX_CTRL_PACKET_SIZE_NRF5340,
+        capsules_extra::usb::usbc_client::MAX_CTRL_PACKET_SIZE_NRF52840,
+        VENDOR_ID,
+        PRODUCT_ID,
+        STRINGS,
+    )
+    .finalize(components::usb_ctap_component_helper!(nrf5340::usbd::Usbd));
+
     // // Create the strings we include in the USB descriptor.
     // let strings = static_init!(
     //     [&str; 3],
@@ -912,6 +953,7 @@ pub unsafe fn start() -> (
         // i2c_master_slave,
         // spi_controller,
         // kv_driver,
+        usb,
         scheduler,
         systick: cortexm33::systick::SysTick::new_with_calibration(64000000),
     };

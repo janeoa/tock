@@ -1,7 +1,7 @@
 //! Component for CTAP over USB.
 
-use capsules::usb::usb_ctap::CtapUsbSyscallDriver;
-use capsules::usb::usbc_ctap_hid::ClientCtapHID;
+use capsules_extra::usb::usb_ctap::CtapUsbSyscallDriver;
+use capsules_extra::usb::usbc_ctap_hid::ClientCtapHID;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -12,8 +12,8 @@ use kernel::hil;
 #[macro_export]
 macro_rules! usb_ctap_component_helper {
     ($C:ty $(,)?) => {{
-        use capsules::usb::usb_ctap::CtapUsbSyscallDriver;
-        use capsules::usb::usbc_ctap_hid::ClientCtapHID;
+        use capsules_extra::usb::usb_ctap::CtapUsbSyscallDriver;
+        use capsules_extra::usb::usbc_ctap_hid::ClientCtapHID;
         use core::mem::MaybeUninit;
 
         static mut hid: MaybeUninit<ClientCtapHID<'static, 'static, $C>> = MaybeUninit::uninit();
@@ -63,7 +63,8 @@ impl<C: 'static + hil::usb::UsbController<'static>> Component for UsbCtapCompone
     );
     type Output = &'static CtapUsbSyscallDriver<'static, 'static, C>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    // unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let usb_ctap = s.0.write(ClientCtapHID::new(

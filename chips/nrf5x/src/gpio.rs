@@ -136,7 +136,7 @@ struct GpioRegisters {
     _reserved2: [u32; 118],
 
     #[cfg(feature = "nrf53")]
-    _reserved2: [u32; 117],
+    _reserved3: [u32; 117],
     /// Configuration of GPIO pins
     pin_cnf: [ReadWrite<u32, PinConfig::Register>; 32],
 }
