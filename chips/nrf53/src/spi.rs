@@ -48,9 +48,12 @@ use nrf5x::pinmux::Pinmux;
 
 const INSTANCES: [StaticRef<SpimRegisters>; 3] = unsafe {
     [
-        StaticRef::new(0x40003000 as *const SpimRegisters),
-        StaticRef::new(0x40004000 as *const SpimRegisters),
-        StaticRef::new(0x40023000 as *const SpimRegisters),
+        // StaticRef::new(0x40003000 as *const SpimRegisters),
+        StaticRef::new(0x50008000 as *const SpimRegisters),
+        StaticRef::new(0x50009000 as *const SpimRegisters),
+        StaticRef::new(0x5000B000 as *const SpimRegisters),
+        // StaticRef::new(0x40004000 as *const SpimRegisters),
+        // StaticRef::new(0x40023000 as *const SpimRegisters),
     ]
 };
 

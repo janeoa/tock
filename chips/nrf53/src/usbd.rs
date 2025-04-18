@@ -5,14 +5,21 @@
 //! Universal Serial Bus Device with EasyDMA (USBD)
 
 use core::cell::Cell;
-use cortexm33::support::atomic;
+// TODO: do we need atomic usb for nrf53?
+// use cortexm33::support::atomic;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::cells::{OptionalCell, VolatileCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, Field, InMemoryRegister, LocalRegisterCopy, ReadOnly,
-    ReadWrite, WriteOnly,
+    // register_bitfields, register_structs, Field, InMemoryRegister, LocalRegisterCopy, ReadOnly,
+    register_bitfields,
+    Field,
+    InMemoryRegister,
+    LocalRegisterCopy,
+    ReadOnly,
+    ReadWrite,
+    WriteOnly,
 };
 use kernel::utilities::StaticRef;
 

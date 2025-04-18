@@ -7,34 +7,36 @@
 //! Minimal implementation to support activation of the reset button on
 //! nRF52-DK.
 
-use crate::ficr;
-use enum_primitive::cast::FromPrimitive;
-use kernel::debug::debug_println;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::utilities::StaticRef;
+// TODO: do we need ficr on nrf53?
+// use crate::ficr;
+// use enum_primitive::cast::FromPrimitive;
+// use kernel::debug::debug_println;
+// use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+// use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::registers::register_bitfields;
+// use kernel::utilities::StaticRef;
 
 // use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 
-use crate::gpio::Pin;
+// use crate::gpio::Pin;
 
-const UICR_BASE: StaticRef<UicrRegisters> =
-    unsafe { StaticRef::new(0x10001200 as *const UicrRegisters) };
-
-register_structs! {
-    // CTRL-AP - Control access port
-    UicrRegisters {
-        (0x000 => approtect: ReadWrite<u32, ApProtect::Register>),
-        (0x004 => _reserved1),
-        (0x00C => extsupply: ReadWrite<u32, ExtSupply::Register>),
-        (0x010 => _reserved2),
-        (0x01C => secure_approtect: ReadWrite<u32, ApProtect::Register>),
-        (0x020 => _reserved3),
-        (0x028 => nfcpins),
-        (0x02C => _reserved4),
-        (0x030 => @END),
-    }
-}
+// const UICR_BASE: StaticRef<UicrRegisters> =
+// //     unsafe { StaticRef::new(0x10001200 as *const UicrRegisters) };
+// TODO: Approtect
+// register_structs! {
+//     // CTRL-AP - Control access port
+//     UicrRegisters {
+//         (0x000 => approtect: ReadWrite<u32, ApProtect::Register>),
+//         (0x004 => _reserved1),
+//         (0x00C => extsupply: ReadWrite<u32, ExtSupply::Register>),
+//         (0x010 => _reserved2),
+//         (0x01C => secure_approtect: ReadWrite<u32, ApProtect::Register>),
+//         (0x020 => _reserved3),
+//         (0x028 => nfcpins),
+//         (0x02C => _reserved4),
+//         (0x030 => @END),
+//     }
+// }
 
 register_bitfields! [u32,
     /// Access port protection
@@ -86,7 +88,7 @@ register_bitfields! [u32,
 ];
 
 pub struct Uicr {
-    registers: StaticRef<UicrRegisters>,
+    // registers: StaticRef<UicrRegisters>,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -123,7 +125,7 @@ impl From<u32> for Regulator0Output {
 impl Uicr {
     pub const fn new() -> Uicr {
         Uicr {
-            registers: UICR_BASE,
+            // registers: UICR_BASE,
         }
     }
 

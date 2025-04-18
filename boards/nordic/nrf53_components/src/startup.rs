@@ -11,27 +11,28 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use nrf53::gpio::Pin;
-use nrf53::uicr::Regulator0Output;
+// use nrf53::uicr::Regulator0Output;
 use segger::rtt::SeggerRtt;
 
 pub struct NrfStartupComponent<'a> {
-    nfc_as_gpios: bool,
+    // TOOD: nfc
+    // nfc_as_gpios: bool,
     // button_rst_pin: Pin,
-    reg_vout: Regulator0Output,
+    // reg_vout: Regulator0Output,
     nvmc: &'a nrf53::nvmc::Nvmc,
 }
 
 impl<'a> NrfStartupComponent<'a> {
     pub fn new(
-        nfc_as_gpios: bool,
+        // nfc_as_gpios: bool,
         // button_rst_pin: Pin,
-        reg_vout: Regulator0Output,
+        // reg_vout: Regulator0Output,
         nvmc: &'a nrf53::nvmc::Nvmc,
     ) -> Self {
         Self {
-            nfc_as_gpios,
+            // nfc_as_gpios,
             // button_rst_pin,
-            reg_vout,
+            // reg_vout,
             nvmc,
         }
     }

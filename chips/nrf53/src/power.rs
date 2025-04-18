@@ -15,8 +15,9 @@ const POWER_BASE: StaticRef<PowerRegisters> =
     // unsafe { StaticRef::new(0x40000000 as *const PowerRegisters) };
     unsafe { StaticRef::new(0x50005000 as *const PowerRegisters) };
 
-const RAM_POWER_BASE_VMC: StaticRef<RamPowerRegisters> =
-    unsafe { StaticRef::new(0x50081000 as *const RamPowerRegisters) };
+// TODO: check if we ever need RAM power
+// const RAM_POWER_BASE_VMC: StaticRef<RamPowerRegisters> =
+//     unsafe { StaticRef::new(0x50081000 as *const RamPowerRegisters) };
 
 const USB_POWER_BASE: StaticRef<USBPowerRegisters> =
     unsafe { StaticRef::new(0x50037000 as *const USBPowerRegisters) };
@@ -26,7 +27,7 @@ const REGULATOR_BASE: StaticRef<RegulatorRegisters> =
 
 // Note: only the nrf52833+ have 9 banks, but we create all of them to avoid
 // gating this code by a feature.
-const NUM_RAM_BANKS: usize = 9;
+// const NUM_RAM_BANKS: usize = 9;
 
 register_structs! {
     RegulatorRegisters {

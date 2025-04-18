@@ -38,7 +38,8 @@ const GPIOTE_BASE: StaticRef<GpioteRegisters> =
     unsafe { StaticRef::new(0x5000D000 as *const GpioteRegisters) };
 
 const GPIO_PORT0_BASE_ADDRESS: usize = 0x50842500;
-const GPIO_PORT1_BASE_ADDRESS: usize = 0x50842800;
+// TODO: Check if we even need Port1
+// const GPIO_PORT1_BASE_ADDRESS: usize = 0x50842800;
 
 // const GPIO_TOTAL_SIZE: usize = 0x600;
 const GPIO_PORT_SIZE: usize = 0x300; // Size for each port

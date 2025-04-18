@@ -127,14 +127,19 @@ const UART_RXD: Pin = Pin::P1_00;
 const UART_RTS: Option<Pin> = Some(Pin::P0_11);
 const UART_CTS: Option<Pin> = Some(Pin::P0_10);
 
-// const SPI_MOSI: Pin = Pin::P0_20;
-// const SPI_MISO: Pin = Pin::P0_21;
-// const SPI_CLK: Pin = Pin::P0_19;
-// const SPI_CS: Pin = Pin::P0_22;
+/*
+SPI_CS: P0.24
+SPI_CLK: P0.19
+SPI_MOSI: P0.20
+SPI_MISO: P0.21 */
+const SPI_CS: Pin = Pin::P0_24;
+const SPI_CLK: Pin = Pin::P0_19;
+const SPI_MOSI: Pin = Pin::P0_20;
+const SPI_MISO: Pin = Pin::P0_21;
 
-// const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
-// const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
-// const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
+const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
+const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
+const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
 
 // /// I2C pins
 // const I2C_SDA_PIN: Pin = Pin::P0_26;
@@ -179,30 +184,30 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 //------------------------------------------------------------------------------
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf5340::rtc::Rtc<'static>>;
-type RngDriver = components::rng::RngComponentType<nrf5340::trng::Trng<'static>>;
+// type RngDriver = components::rng::RngComponentType<nrf5340::trng::Trng<'static>>;
 
 // TicKV
-// type Mx25r6435f = components::mx25r6435f::Mx25r6435fComponentType<
-//     nrf5340::spi::SPIM<'static>,
-//     nrf5340::gpio::GPIOPin<'static>,
-//     nrf5340::rtc::Rtc<'static>,
-// >;
-// const TICKV_PAGE_SIZE: usize =
-//     core::mem::size_of::<<Mx25r6435f as kernel::hil::flash::Flash>::Page>();
-// type Siphasher24 = components::siphash::Siphasher24ComponentType;
-// type TicKVDedicatedFlash =
-//     components::tickv::TicKVDedicatedFlashComponentType<Mx25r6435f, Siphasher24, TICKV_PAGE_SIZE>;
-// type TicKVKVStore = components::kv::TicKVKVStoreComponentType<
-//     TicKVDedicatedFlash,
-//     capsules_extra::tickv::TicKVKeyType,
-// >;
-// type KVStorePermissions = components::kv::KVStorePermissionsComponentType<TicKVKVStore>;
-// type VirtualKVPermissions = components::kv::VirtualKVPermissionsComponentType<KVStorePermissions>;
-// type KVDriver = components::kv::KVDriverComponentType<VirtualKVPermissions>;
+type Mx25r6435f = components::mx25r6435f::Mx25r6435fComponentType<
+    nrf5340::spi::SPIM<'static>,
+    nrf5340::gpio::GPIOPin<'static>,
+    nrf5340::rtc::Rtc<'static>,
+>;
+const TICKV_PAGE_SIZE: usize =
+    core::mem::size_of::<<Mx25r6435f as kernel::hil::flash::Flash>::Page>();
+type Siphasher24 = components::siphash::Siphasher24ComponentType;
+type TicKVDedicatedFlash =
+    components::tickv::TicKVDedicatedFlashComponentType<Mx25r6435f, Siphasher24, TICKV_PAGE_SIZE>;
+type TicKVKVStore = components::kv::TicKVKVStoreComponentType<
+    TicKVDedicatedFlash,
+    capsules_extra::tickv::TicKVKeyType,
+>;
+type KVStorePermissions = components::kv::KVStorePermissionsComponentType<TicKVKVStore>;
+type VirtualKVPermissions = components::kv::VirtualKVPermissionsComponentType<KVStorePermissions>;
+type KVDriver = components::kv::KVDriverComponentType<VirtualKVPermissions>;
 
 // Temperature
-type TemperatureDriver =
-    components::temperature::TemperatureComponentType<nrf5340::temperature::Temp<'static>>;
+// type TemperatureDriver =
+//     components::temperature::TemperatureComponentType<nrf5340::temperature::Temp<'static>>;
 
 // IEEE 802.15.4
 // type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<
@@ -226,7 +231,7 @@ pub struct Platform {
     // nrf5340::ble_radio::Radio<'static>,
     // VirtualMuxAlarm<'static, nrf5340::rtc::Rtc<'static>>,
     // >,
-    // button: &'static capsules_core::button::Button<'static, nrf5340::gpio::GPIOPin<'static>>,
+    button: &'static capsules_core::button::Button<'static, nrf5340::gpio::GPIOPin<'static>>,
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
         { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
@@ -254,14 +259,14 @@ pub struct Platform {
     //     'static,
     //     nrf5340::i2c::TWI<'static>,
     // >,
-    // spi_controller: &'static capsules_core::spi_controller::Spi<
-    //     'static,
-    //     capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
-    //         'static,
-    //         nrf5340::spi::SPIM<'static>,
-    //     >,
-    // >,
-    // kv_driver: &'static KVDriver,
+    spi_controller: &'static capsules_core::spi_controller::Spi<
+        'static,
+        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+            'static,
+            nrf5340::spi::SPIM<'static>,
+        >,
+    >,
+    kv_driver: &'static KVDriver,
     // usb: &'static components::usb_ctap::UsbCtapComponent<'static>,
     // usb: &'static capsules::usb::usb_ctap::CtapUsbSyscallDriver<
     usb: &'static capsules_extra::usb::usb_ctap::CtapUsbSyscallDriver<
@@ -285,7 +290,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             // capsules_extra::usb_ctap::DRIVER_NUM => f(Some(self.usb)),
             capsules_extra::usb::usb_ctap::DRIVER_NUM => f(Some(self.usb)),
-            // capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             // capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             // capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             // capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
@@ -293,8 +298,8 @@ impl SyscallDriverLookup for Platform {
             // capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             // capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
-            // capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
-            // capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
+            capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
+            capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
             _ => f(None),
         }
     }
@@ -496,9 +501,9 @@ pub unsafe fn start() -> (
     // Do nRF configuration and setup. This is shared code with other nRF-based
     // platforms.
     nrf53_components::startup::NrfStartupComponent::new(
-        false,
+        // false,
         // BUTTON_RST_PIN,
-        nrf5340::uicr::Regulator0Output::DEFAULT,
+        // nrf5340::uicr::Regulator0Output::DEFAULT,
         &base_peripherals.nvmc,
     );
     // .finalize(());
@@ -510,7 +515,7 @@ pub unsafe fn start() -> (
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    // let gpio_port = &nrf5340_peripherals.gpio_port;
+    let gpio_port = &nrf5340_peripherals.gpio_port;
 
     //--------------------------------------------------------------------------
     // GPIO
@@ -656,40 +661,40 @@ pub unsafe fn start() -> (
     // BLE
     //--------------------------------------------------------------------------
 
-    let ble_radio = components::ble::BLEComponent::new(
-        board_kernel,
-        capsules_extra::ble_advertising_driver::DRIVER_NUM,
-        &base_peripherals.ble_radio,
-        mux_alarm,
-    )
-    .finalize(components::ble_component_static!(
-        nrf5340::rtc::Rtc,
-        nrf5340::ble_radio::Radio
-    ));
+    // let ble_radio = components::ble::BLEComponent::new(
+    //     board_kernel,
+    //     capsules_extra::ble_advertising_driver::DRIVER_NUM,
+    //     &base_peripherals.ble_radio,
+    //     mux_alarm,
+    // )
+    // .finalize(components::ble_component_static!(
+    //     nrf5340::rtc::Rtc,
+    //     nrf5340::ble_radio::Radio
+    // ));
 
     //--------------------------------------------------------------------------
     // TEMPERATURE (internal)
     //--------------------------------------------------------------------------
 
-    let temp = components::temperature::TemperatureComponent::new(
-        board_kernel,
-        capsules_extra::temperature::DRIVER_NUM,
-        &base_peripherals.temp,
-    )
-    .finalize(components::temperature_component_static!(
-        nrf5340::temperature::Temp
-    ));
+    // let temp = components::temperature::TemperatureComponent::new(
+    //     board_kernel,
+    //     capsules_extra::temperature::DRIVER_NUM,
+    //     &base_peripherals.temp,
+    // )
+    // .finalize(components::temperature_component_static!(
+    //     nrf5340::temperature::Temp
+    // ));
 
     //--------------------------------------------------------------------------
     // RANDOM NUMBER GENERATOR
     //--------------------------------------------------------------------------
 
-    let rng = components::rng::RngComponent::new(
-        board_kernel,
-        capsules_core::rng::DRIVER_NUM,
-        &base_peripherals.trng,
-    )
-    .finalize(components::rng_component_static!(nrf5340::trng::Trng));
+    // let rng = components::rng::RngComponent::new(
+    //     board_kernel,
+    //     capsules_core::rng::DRIVER_NUM,
+    //     &base_peripherals.trng,
+    // )
+    // .finalize(components::rng_component_static!(nrf5340::trng::Trng));
 
     //--------------------------------------------------------------------------
     // ADC
@@ -720,105 +725,105 @@ pub unsafe fn start() -> (
     // SPI
     //--------------------------------------------------------------------------
 
-    // let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
-    //     .finalize(components::spi_mux_component_static!(nrf5340::spi::SPIM));
+    let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
+        .finalize(components::spi_mux_component_static!(nrf5340::spi::SPIM));
 
     // // Create the SPI system call capsule.
-    // let spi_controller = components::spi::SpiSyscallComponent::new(
-    //     board_kernel,
-    //     mux_spi,
-    //     kernel::hil::spi::cs::IntoChipSelect::<_, kernel::hil::spi::cs::ActiveLow>::into_cs(
-    //         &gpio_port[SPI_CS],
-    //     ),
-    //     capsules_core::spi_controller::DRIVER_NUM,
-    // )
-    // .finalize(components::spi_syscall_component_static!(
-    //     nrf5340::spi::SPIM
-    // ));
+    let spi_controller = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        mux_spi,
+        kernel::hil::spi::cs::IntoChipSelect::<_, kernel::hil::spi::cs::ActiveLow>::into_cs(
+            &gpio_port[SPI_CS],
+        ),
+        capsules_core::spi_controller::DRIVER_NUM,
+    )
+    .finalize(components::spi_syscall_component_static!(
+        nrf5340::spi::SPIM
+    ));
 
-    // // base_peripherals.spim0.configure(
-    // //     nrf5340::pinmux::Pinmux::new(SPI_MOSI as u32),
-    // //     nrf5340::pinmux::Pinmux::new(SPI_MISO as u32),
-    // //     nrf5340::pinmux::Pinmux::new(SPI_CLK as u32),
-    // // );
+    base_peripherals.spim0.configure(
+        nrf5340::pinmux::Pinmux::new(SPI_MOSI as u32),
+        nrf5340::pinmux::Pinmux::new(SPI_MISO as u32),
+        nrf5340::pinmux::Pinmux::new(SPI_CLK as u32),
+    );
 
     //--------------------------------------------------------------------------
     // ONBOARD EXTERNAL FLASH
     //--------------------------------------------------------------------------
 
-    // let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
-    //     Some(&gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN]),
-    //     Some(&gpio_port[SPI_MX25R6435F_HOLD_PIN]),
-    //     &gpio_port[SPI_MX25R6435F_CHIP_SELECT],
-    //     mux_alarm,
-    //     mux_spi,
-    // )
-    // .finalize(components::mx25r6435f_component_static!(
-    //     nrf5340::spi::SPIM,
-    //     nrf5340::gpio::GPIOPin,
-    //     nrf5340::rtc::Rtc
-    // ));
+    let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
+        Some(&gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN]),
+        Some(&gpio_port[SPI_MX25R6435F_HOLD_PIN]),
+        &gpio_port[SPI_MX25R6435F_CHIP_SELECT],
+        mux_alarm,
+        mux_spi,
+    )
+    .finalize(components::mx25r6435f_component_static!(
+        nrf5340::spi::SPIM,
+        nrf5340::gpio::GPIOPin,
+        nrf5340::rtc::Rtc
+    ));
 
     //--------------------------------------------------------------------------
     // TICKV
     //--------------------------------------------------------------------------
 
-    // // Static buffer to use when reading/writing flash for TicKV.
-    // let page_buffer = static_init!(
-    //     <Mx25r6435f as kernel::hil::flash::Flash>::Page,
-    //     <Mx25r6435f as kernel::hil::flash::Flash>::Page::default()
-    // );
+    // Static buffer to use when reading/writing flash for TicKV.
+    let page_buffer = static_init!(
+        <Mx25r6435f as kernel::hil::flash::Flash>::Page,
+        <Mx25r6435f as kernel::hil::flash::Flash>::Page::default()
+    );
 
-    // // SipHash for creating TicKV hashed keys.
-    // let sip_hash = components::siphash::Siphasher24Component::new()
-    //     .finalize(components::siphasher24_component_static!());
+    // SipHash for creating TicKV hashed keys.
+    let sip_hash = components::siphash::Siphasher24Component::new()
+        .finalize(components::siphasher24_component_static!());
 
-    // // TicKV with Tock wrapper/interface.
-    // let tickv = components::tickv::TicKVDedicatedFlashComponent::new(
-    //     sip_hash,
-    //     mx25r6435f,
-    //     0, // start at the beginning of the flash chip
-    //     (capsules_extra::mx25r6435f::SECTOR_SIZE as usize) * 32, // arbitrary size of 32 pages
-    //     page_buffer,
-    // )
-    // .finalize(components::tickv_dedicated_flash_component_static!(
-    //     Mx25r6435f,
-    //     Siphasher24,
-    //     TICKV_PAGE_SIZE,
-    // ));
+    // TicKV with Tock wrapper/interface.
+    let tickv = components::tickv::TicKVDedicatedFlashComponent::new(
+        sip_hash,
+        mx25r6435f,
+        0, // start at the beginning of the flash chip
+        (capsules_extra::mx25r6435f::SECTOR_SIZE as usize) * 32, // arbitrary size of 32 pages
+        page_buffer,
+    )
+    .finalize(components::tickv_dedicated_flash_component_static!(
+        Mx25r6435f,
+        Siphasher24,
+        TICKV_PAGE_SIZE,
+    ));
 
-    // // KVSystem interface to KV (built on TicKV).
-    // let tickv_kv_store = components::kv::TicKVKVStoreComponent::new(tickv).finalize(
-    //     components::tickv_kv_store_component_static!(
-    //         TicKVDedicatedFlash,
-    //         capsules_extra::tickv::TicKVKeyType,
-    //     ),
-    // );
+    // KVSystem interface to KV (built on TicKV).
+    let tickv_kv_store = components::kv::TicKVKVStoreComponent::new(tickv).finalize(
+        components::tickv_kv_store_component_static!(
+            TicKVDedicatedFlash,
+            capsules_extra::tickv::TicKVKeyType,
+        ),
+    );
 
-    // let kv_store_permissions = components::kv::KVStorePermissionsComponent::new(tickv_kv_store)
-    //     .finalize(components::kv_store_permissions_component_static!(
-    //         TicKVKVStore
-    //     ));
+    let kv_store_permissions = components::kv::KVStorePermissionsComponent::new(tickv_kv_store)
+        .finalize(components::kv_store_permissions_component_static!(
+            TicKVKVStore
+        ));
 
-    // // Share the KV stack with a mux.
-    // let mux_kv = components::kv::KVPermissionsMuxComponent::new(kv_store_permissions).finalize(
-    //     components::kv_permissions_mux_component_static!(KVStorePermissions),
-    // );
+    // Share the KV stack with a mux.
+    let mux_kv = components::kv::KVPermissionsMuxComponent::new(kv_store_permissions).finalize(
+        components::kv_permissions_mux_component_static!(KVStorePermissions),
+    );
 
     // // Create a virtual component for the userspace driver.
-    // let virtual_kv_driver = components::kv::VirtualKVPermissionsComponent::new(mux_kv).finalize(
-    //     components::virtual_kv_permissions_component_static!(KVStorePermissions),
-    // );
+    let virtual_kv_driver = components::kv::VirtualKVPermissionsComponent::new(mux_kv).finalize(
+        components::virtual_kv_permissions_component_static!(KVStorePermissions),
+    );
 
-    // // Userspace driver for KV.
-    // let kv_driver = components::kv::KVDriverComponent::new(
-    //     virtual_kv_driver,
-    //     board_kernel,
-    //     capsules_extra::kv_driver::DRIVER_NUM,
-    // )
-    // .finalize(components::kv_driver_component_static!(
-    //     VirtualKVPermissions
-    // ));
+    // Userspace driver for KV.
+    let kv_driver = components::kv::KVDriverComponent::new(
+        virtual_kv_driver,
+        board_kernel,
+        capsules_extra::kv_driver::DRIVER_NUM,
+    )
+    .finalize(components::kv_driver_component_static!(
+        VirtualKVPermissions
+    ));
 
     //--------------------------------------------------------------------------
     // I2C CONTROLLER/TARGET
@@ -934,7 +939,7 @@ pub unsafe fn start() -> (
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
-        // button,
+        button,
         // ble_radio,
         pconsole,
         console,
@@ -951,14 +956,14 @@ pub unsafe fn start() -> (
             &memory_allocation_capability,
         ),
         // i2c_master_slave,
-        // spi_controller,
-        // kv_driver,
+        spi_controller,
+        kv_driver,
         usb,
         scheduler,
         systick: cortexm33::systick::SysTick::new_with_calibration(64000000),
     };
 
-    // let _ = platform.pconsole.start();
+    let _ = platform.pconsole.start();
     // base_peripherals.adc.calibrate();
 
     debug!("Initialization complete. Entering main loop\r");

@@ -81,7 +81,9 @@ impl KernelResources<Chip> for Platform {
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let (board_kernel, base_platform, chip, default_peripherals, mux_alarm) =
+    // let (board_kernel, base_platform, chip, default_peripherals, mux_alarm) =
+    //     nrf5340dk_lib::start();
+    let (board_kernel, base_platform, chip, _default_peripherals, _mux_alarm) =
         nrf5340dk_lib::start();
 
     //--------------------------------------------------------------------------
