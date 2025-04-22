@@ -617,7 +617,7 @@ pub unsafe fn start() -> (
     let uart_channel = nrf53_components::UartChannelComponent::new(
         uart_channel,
         mux_alarm,
-        &base_peripherals.uarte0,
+        &base_peripherals.uarte1,
     )
     .finalize(nrf53_components::uart_channel_component_static!(
         nrf5340::rtc::Rtc
@@ -963,7 +963,7 @@ pub unsafe fn start() -> (
         systick: cortexm33::systick::SysTick::new_with_calibration(64000000),
     };
 
-    let _ = platform.pconsole.start();
+    // let _ = platform.pconsole.start();
     // base_peripherals.adc.calibrate();
 
     debug!("Initialization complete. Entering main loop\r");

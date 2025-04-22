@@ -7,7 +7,8 @@ pub const POWER_CLOCK: u32 = 5; // CLOCK, POWER
 
 // pub const RADIO: u32 = 8;
 
-pub const UART0: u32 = 8; //SPI, i2c,
+// pub const UART0: u32 = 8; //SPI, i2c,
+pub const SPI0: u32 = 8; //SPI, i2c,
 pub const UART1: u32 = 9; //SPI, i2c,
 pub const SPI4: u32 = 10;
 pub const UART2: u32 = 11; //SPI, i2c,
