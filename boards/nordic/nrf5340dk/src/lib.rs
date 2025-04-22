@@ -72,11 +72,16 @@
 
 use core::ptr::addr_of;
 
+use capsules_core::test;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_pwm::PwmPinUser;
+use capsules_extra::pwm;
+use components::pwm::PwmPinUserComponent;
 // use capsules_extra::net::ieee802154::MacAddress;
 // use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
+use kernel::hil::pwm::Pwm;
 use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
@@ -86,9 +91,8 @@ use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf5340::gpio::Pin;
 use nrf5340::interrupt_service::Nrf5340DefaultPeripherals;
+use nrf5340::pinmux::Pinmux;
 use nrf53_components::{UartChannel, UartPins};
-
-// The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_28;
 const LED2_PIN: Pin = Pin::P0_29;
 const LED3_PIN: Pin = Pin::P0_30;
@@ -109,6 +113,8 @@ const UART_TXD: Pin = Pin::P1_01;
 const UART_RXD: Pin = Pin::P1_00;
 const UART_RTS: Option<Pin> = Some(Pin::P0_11);
 const UART_CTS: Option<Pin> = Some(Pin::P0_10);
+
+const NUM_PWM_PINS: usize = 1;
 
 // const SPI_MOSI: Pin = Pin::P0_20;
 // const SPI_MISO: Pin = Pin::P0_21;
@@ -224,7 +230,7 @@ pub struct Platform {
         4,
     >,
     // rng: &'static RngDriver,
-    // adc: &'static capsules_core::adc::AdcDedicated<'static, nrf5340::adc::Adc<'static>>,
+    adc: &'static capsules_core::adc::AdcDedicated<'static, nrf5340::adc::Adc<'static>>,
     // temp: &'static TemperatureDriver,
     /// The IPC driver.
     pub ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
@@ -247,6 +253,8 @@ pub struct Platform {
     // kv_driver: &'static KVDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm33::systick::SysTick,
+    // virtual_pwm: &'static PwmPinUser<'static, nrf5340::pwm::Pwm>,
+    pwm: &'static capsules_extra::pwm::Pwm<'static, 1>,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -261,11 +269,12 @@ impl SyscallDriverLookup for Platform {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             // capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             // capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
-            // capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             // capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             // capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
             // capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules_extra::pwm::DRIVER_NUM => f(Some(self.pwm)),
             // capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             // capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             // capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
@@ -669,26 +678,26 @@ pub unsafe fn start() -> (
     // ADC
     //--------------------------------------------------------------------------
 
-    // let adc_channels = static_init!(
-    //     [nrf5340::adc::AdcChannelSetup; 6],
-    //     [
-    //         nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput1),
-    //         nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput2),
-    //         nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput4),
-    //         nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput5),
-    //         nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput6),
-    //         nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput7),
-    //     ]
-    // );
-    // let adc = components::adc::AdcDedicatedComponent::new(
-    //     &base_peripherals.adc,
-    //     adc_channels,
-    //     board_kernel,
-    //     capsules_core::adc::DRIVER_NUM,
-    // )
-    // .finalize(components::adc_dedicated_component_static!(
-    //     nrf5340::adc::Adc
-    // ));
+    let adc_channels = static_init!(
+        [nrf5340::adc::AdcChannelSetup; 1],
+        [
+            nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput1),
+            // nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput2),
+            // nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput4),
+            // nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput5),
+            // nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput6),
+            // nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput7),
+        ]
+    );
+    let adc = components::adc::AdcDedicatedComponent::new(
+        &base_peripherals.adc,
+        adc_channels,
+        board_kernel,
+        capsules_core::adc::DRIVER_NUM,
+    )
+    .finalize(components::adc_dedicated_component_static!(
+        nrf5340::adc::Adc
+    ));
 
     //--------------------------------------------------------------------------
     // SPI
@@ -886,6 +895,24 @@ pub unsafe fn start() -> (
     // keyboard_hid.attach();
 
     //--------------------------------------------------------------------------
+    // NRF PWM SETUP
+    //--------------------------------------------------------------------------
+
+    let mux_pwm = components::pwm::PwmMuxComponent::new(&base_peripherals.pwm0)
+        .finalize(components::pwm_mux_component_static!(nrf5340::pwm::Pwm));
+
+    let virtual_pwm_driver = components::pwm::PwmPinUserComponent::new(
+        mux_pwm,
+        nrf5340::pinmux::Pinmux::new(LED4_PIN as u32),
+    )
+    .finalize(components::pwm_pin_user_component_static!(
+        nrf5340::pwm::Pwm
+    ));
+
+    let pwm = components::pwm::PwmDriverComponent::new(board_kernel, pwm::DRIVER_NUM)
+        .finalize(components::pwm_driver_component_helper!(virtual_pwm_driver));
+
+    //--------------------------------------------------------------------------
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
     //--------------------------------------------------------------------------
 
@@ -900,7 +927,7 @@ pub unsafe fn start() -> (
         led,
         gpio,
         // rng,
-        // adc,
+        adc,
         // temp,
         alarm,
         // analog_comparator,
@@ -914,11 +941,14 @@ pub unsafe fn start() -> (
         // kv_driver,
         scheduler,
         systick: cortexm33::systick::SysTick::new_with_calibration(64000000),
+        pwm: pwm,
     };
 
     // let _ = platform.pconsole.start();
-    // base_peripherals.adc.calibrate();
+    base_peripherals.adc.calibrate();
 
+    // let test_adc = capsules_core::test::adc::TestAdc::new(adc);
+    // test_adc::
     debug!("Initialization complete. Entering main loop\r");
     // debug!("{}", &*addr_of!(nrf5340::ficr::FICR_INSTANCE));
 

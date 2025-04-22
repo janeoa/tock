@@ -22,6 +22,7 @@ struct PwmRegisters {
     tasks_nextstep: WriteOnly<u32, TASK::Register>,
     _reserved1: [u8; 240],
     /// Response to STOP task, emitted when PWM pulses are no longer generated
+    /// 0x104-0x108
     events_stopped: ReadWrite<u32, EVENT::Register>,
     /// First PWM period started on sequence 0
     events_seqstarted: [ReadWrite<u32, EVENT::Register>; 2],
@@ -166,7 +167,7 @@ register_bitfields![u32,
 ];
 
 const PWM0_BASE: StaticRef<PwmRegisters> =
-    unsafe { StaticRef::new(0x4001C000 as *const PwmRegisters) };
+    unsafe { StaticRef::new(0x50021000 as *const PwmRegisters) };
 
 /// `DUTY_CYCLES` is a static array that must be passed to the PWM hardware.
 /// The nRF52 hardware uses this static array in memory to enable switching

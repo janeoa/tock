@@ -17,13 +17,19 @@ use kernel::ErrorCode;
 #[repr(C)]
 struct AdcRegisters {
     /// Start the ADC and prepare the result buffer in RAM
+    /// 0x000-0x004
     tasks_start: WriteOnly<u32, TASK::Register>,
     /// Take one ADC sample, if scan is enabled all channels are sampled
+    /// 0x004-0x008
     tasks_sample: WriteOnly<u32, TASK::Register>,
     /// Stop the ADC and terminate any on-going conversion
+    /// 0x008-0x00C
     tasks_stop: WriteOnly<u32, TASK::Register>,
     /// Starts offset auto-calibration
+    /// 0x00C-0x010
     tasks_calibrateoffset: WriteOnly<u32, TASK::Register>,
+    /// Reserved0
+    /// 0x010-0x100
     _reserved0: [u8; 240],
     /// The ADC has started
     events_started: ReadWrite<u32, EVENT::Register>,

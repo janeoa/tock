@@ -12,6 +12,7 @@
 
 use core::ptr::addr_of_mut;
 
+use capsules_core::test::adc::TestAdc;
 use kernel::debug;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::{capabilities, create_capability};
@@ -83,7 +84,6 @@ impl KernelResources<Chip> for Platform {
 pub unsafe fn main() {
     let (board_kernel, base_platform, chip, default_peripherals, mux_alarm) =
         nrf5340dk_lib::start();
-
     //--------------------------------------------------------------------------
     // IEEE 802.15.4 and UDP
     //--------------------------------------------------------------------------
