@@ -41,10 +41,37 @@ use crate::utilities::cells::NumericCellExt;
 /// is less than this threshold.
 pub(crate) const MIN_QUANTA_THRESHOLD_US: u32 = 500;
 
+/// Represents the type of a storage slice.
+#[derive(Copy, Clone)]
+pub enum StorageType {
+    Store = 1,
+    Partition = 2,
+}
+
+impl TryFrom<StorageType> for u32 {
+    type Error = ();
+
+    fn try_from(value: StorageType) -> Result<Self, Self::Error> {
+        match value {
+            StorageType::Store => Ok(StorageType::Store as u32),
+            StorageType::Partition => Ok(StorageType::Partition as u32),
+        }
+    }
+}
+/// Represents a storage location in flash.
+pub struct StorageLocation {
+    pub address: usize,
+    pub size: usize,
+    pub storage_type: StorageType,
+}
+
 /// Main object for the kernel. Each board will need to create one.
 pub struct Kernel {
     /// This holds a pointer to the static array of Process pointers.
     processes: &'static [Option<&'static dyn process::Process>],
+
+    /// List of storage locations.
+    storage_locations: &'static [StorageLocation],
 
     /// A counter which keeps track of how many process identifiers have been
     /// created. This is used to create new unique identifiers for processes.
@@ -89,12 +116,23 @@ impl Kernel {
     /// to execute. Any credential checks or validation MUST happen before the
     /// `Process` object is included in this array.
     pub fn new(processes: &'static [Option<&'static dyn process::Process>]) -> Kernel {
+        Kernel::new_with_storage(processes, &[])
+    }
+    pub fn new_with_storage(
+        processes: &'static [Option<&'static dyn process::Process>],
+        storage_locations: &'static [StorageLocation],
+    ) -> Kernel {
         Kernel {
             processes,
+            storage_locations,
             process_identifier_max: Cell::new(0),
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
         }
+    }
+
+    pub fn storage_locations(&self) -> &'static [StorageLocation] {
+        self.storage_locations
     }
 
     /// Helper function that moves all non-generic portions of process_map_or

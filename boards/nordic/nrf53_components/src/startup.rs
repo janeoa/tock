@@ -72,6 +72,9 @@ impl Component for NrfStartupComponent<'_> {
         //     erase_uicr = true;
         // }
 
+        // // Avoid killing the DFU bootloader if present
+        // let (dfu_start_addr, dfu_settings_addr) = uicr.get_dfu_params();
+
         // if erase_uicr {
         //     self.nvmc.erase_uicr();
         // }
@@ -80,6 +83,11 @@ impl Component for NrfStartupComponent<'_> {
         while !self.nvmc.is_ready() {}
 
         let mut needs_soft_reset: bool = false;
+
+        // // Restore DFU bootloader settings if we erased
+        // if erase_uicr {
+        //     uicr.set_dfu_params(dfu_start_addr, dfu_settings_addr);
+        // }
 
         // Configure reset pins
         // if uicr

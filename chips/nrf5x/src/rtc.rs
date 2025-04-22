@@ -16,9 +16,9 @@ use kernel::ErrorCode;
 const RTC1_BASE: StaticRef<RtcRegisters> =
     unsafe { StaticRef::new(0x50014000 as *const RtcRegisters) };
 
-#[cfg(feature = "nrf52")]
-const RTC1_BASE: StaticRef<RtcRegisters> =
-    unsafe { StaticRef::new(0x50011000 as *const RtcRegisters) };
+// #[cfg(feature = "nrf52")]
+// const RTC1_BASE: StaticRef<RtcRegisters> =
+//     unsafe { StaticRef::new(0x50011000 as *const RtcRegisters) };
 
 #[repr(C)]
 struct RtcRegisters {

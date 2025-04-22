@@ -19,7 +19,7 @@ use crate::collections::ring_buffer::RingBuffer;
 use crate::config;
 use crate::debug;
 use crate::errorcode::ErrorCode;
-use crate::kernel::Kernel;
+use crate::kernel::{Kernel, StorageLocation};
 use crate::platform::chip::Chip;
 use crate::platform::mpu::{self, MPU};
 use crate::process::BinaryVersion;
@@ -497,6 +497,35 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
 }
 
 impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_, C, D> {
+    fn number_storage_locations(&self) -> usize {
+        self.kernel.storage_locations().len()
+    }
+
+    fn get_storage_location(&self, index: usize) -> Option<&StorageLocation> {
+        self.kernel.storage_locations().get(index)
+    }
+
+    fn fits_in_storage_location(&self, ptr: usize, len: usize) -> bool {
+        self.kernel
+            .storage_locations()
+            .iter()
+            .any(|storage_location| {
+                let storage_ptr = storage_location.address;
+                let storage_len = storage_location.size;
+                // We want to check the 2 following inequalities:
+                // (1) `storage_ptr <= ptr`
+                // (2) `ptr + len <= storage_ptr + storage_len`
+                // However, the second one may overflow written as is. We introduce a third
+                // inequality to solve this issue:
+                // (3) `len <= storage_len`
+                // Using this third inequality, we can rewrite the second one as:
+                // (4) `ptr - storage_ptr <= storage_len - len`
+                // This fourth inequality is equivalent to the second one but doesn't overflow when
+                // the first and third inequalities hold.
+                storage_ptr <= ptr && len <= storage_len && ptr - storage_ptr <= storage_len - len
+            })
+    }
+
     fn processid(&self) -> ProcessId {
         self.process_id.get()
     }
