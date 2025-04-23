@@ -422,9 +422,7 @@ pub struct SyscallDriver {
     nvmc: &'static Nvmc,
     apps: NvmcDriverGrant,
     waiting: OptionalCell<ProcessId>,
-    // deferred_caller: &'static DynamicDeferredCall,
     deferred_caller: &'static DeferredCall,
-    deferred_handle: OptionalCell<DeferredCallHandle>,
     buffer: TakeCell<'static, [u8]>,
 }
 
@@ -442,7 +440,7 @@ impl SyscallDriver {
     pub fn new(
         nvmc: &'static Nvmc,
         apps: NvmcDriverGrant,
-        deferred_caller: &'static DynamicDeferredCall,
+        deferred_caller: &'static DeferredCall,
         buffer: &'static mut [u8],
     ) -> SyscallDriver {
         nvmc.configure_readonly();
@@ -451,13 +449,13 @@ impl SyscallDriver {
             apps,
             waiting: OptionalCell::empty(),
             deferred_caller,
-            deferred_handle: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
         }
     }
 
-    pub fn set_deferred_handle(&self, handle: DeferredCallHandle) {
-        self.deferred_handle.replace(handle);
+    pub fn set_deferred_handle(&self, handle: DeferredCall) {
+        // self.deferred_handle.replace(handle);
+        self.deferred_caller.set();
     }
 
     /// Writes a word-aligned slice at a word-aligned address.
@@ -493,8 +491,10 @@ impl SyscallDriver {
         }
         while !self.nvmc.is_ready() {}
         self.nvmc.configure_readonly();
-        self.deferred_handle
-            .map(|handle| self.deferred_caller.set(*handle));
+        // self.deferred_handle
+        //     .map(|handle| self.deferred_caller.set(*handle));
+        self.deferred_caller.set();
+
         CommandReturn::success()
     }
 
@@ -511,19 +511,27 @@ impl SyscallDriver {
         }
         self.nvmc.erase_page_helper(ptr / PAGE_SIZE);
         self.nvmc.configure_readonly();
-        self.deferred_handle
-            .map(|handle| self.deferred_caller.set(*handle));
+        // self.deferred_handle
+        //     .map(|handle| self.deferred_caller.set(*handle));
+        self.deferred_caller.set();
+
         CommandReturn::success()
     }
 }
 
-impl DynamicDeferredCallClient for SyscallDriver {
-    fn call(&self, _handle: DeferredCallHandle) {
+impl DeferredCallClient for SyscallDriver {
+    fn handle_deferred_call(&self) {
+        // Handle the deferred call
         self.waiting.take().map(|process_id| {
             self.apps.enter(process_id, |_, kernel_data| {
                 kernel_data.schedule_upcall(0, (0, 0, 0))
             })
         });
+    }
+
+    fn register(&'static self) {
+        // Register this client with the deferred caller
+        self.deferred_caller.register(self);
     }
 }
 
