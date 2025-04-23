@@ -184,7 +184,7 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 //------------------------------------------------------------------------------
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf5340::rtc::Rtc<'static>>;
-// type RngDriver = components::rng::RngComponentType<nrf5340::trng::Trng<'static>>;
+type RngDriver = components::rng::RngComponentType<nrf5340::trng::Trng<'static>>;
 
 // TicKV
 type Mx25r6435f = components::mx25r6435f::Mx25r6435fComponentType<
@@ -245,7 +245,7 @@ pub struct Platform {
         kernel::hil::led::LedLow<'static, nrf5340::gpio::GPIOPin<'static>>,
         4,
     >,
-    // rng: &'static RngDriver,
+    rng: &'static RngDriver,
     // adc: &'static capsules_core::adc::AdcDedicated<'static, nrf5340::adc::Adc<'static>>,
     // temp: &'static TemperatureDriver,
     /// The IPC driver.
@@ -291,7 +291,7 @@ impl SyscallDriverLookup for Platform {
             // capsules_extra::usb_ctap::DRIVER_NUM => f(Some(self.usb)),
             capsules_extra::usb::usb_ctap::DRIVER_NUM => f(Some(self.usb)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
-            // capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             // capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             // capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             // capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
@@ -689,12 +689,12 @@ pub unsafe fn start() -> (
     // RANDOM NUMBER GENERATOR
     //--------------------------------------------------------------------------
 
-    // let rng = components::rng::RngComponent::new(
-    //     board_kernel,
-    //     capsules_core::rng::DRIVER_NUM,
-    //     &base_peripherals.trng,
-    // )
-    // .finalize(components::rng_component_static!(nrf5340::trng::Trng));
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules_core::rng::DRIVER_NUM,
+        &base_peripherals.trng,
+    )
+    .finalize(components::rng_component_static!(nrf5340::trng::Trng));
 
     //--------------------------------------------------------------------------
     // ADC
@@ -945,7 +945,7 @@ pub unsafe fn start() -> (
         console,
         led,
         gpio,
-        // rng,
+        rng,
         // adc,
         // temp,
         alarm,
