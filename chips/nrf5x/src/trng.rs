@@ -33,7 +33,8 @@ use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 const RNG_BASE: StaticRef<RngRegisters> =
-    unsafe { StaticRef::new(0x4000D000 as *const RngRegisters) };
+    // unsafe { StaticRef::new(0x4000D000 as *const RngRegisters) };
+    unsafe { StaticRef::new(0x41009000 as *const RngRegisters) };
 
 #[repr(C)]
 pub struct RngRegisters {
