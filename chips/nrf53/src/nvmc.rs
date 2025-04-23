@@ -26,7 +26,8 @@ use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 const NVMC_BASE: StaticRef<NvmcRegisters> =
-    unsafe { StaticRef::new(0x4001E400 as *const NvmcRegisters) };
+    // unsafe { StaticRef::new(0x4001E400 as *const NvmcRegisters) };
+    unsafe { StaticRef::new(0x50039000 as *const NvmcRegisters) };
 
 #[repr(C)]
 struct NvmcRegisters {
