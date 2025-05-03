@@ -20,7 +20,9 @@ path = "src/main.rs"
 components = { path = "../../components" }
 cortexm33 = { path = "../../../arch/cortex-m33" }
 #kernel = { path = "../../../kernel" }
-kernel = { path = "../../../kernel",  features = ["debug_load_processes", "debug_process_credentials", "trace_syscalls"]}
+#kernel = { path = "../../../kernel",  features = ["debug_load_processes", "debug_process_credentials", "trace_syscalls"]}
+kernel = { path = "../../../kernel",  features = ["debug_load_processes", "debug_process_credentials"]}
+
 nrf5340 = { path = "../../../chips/nrf5340" }
 segger = { path = "../../../chips/segger" }
 nrf53_components = { path = "../nrf53_components" }
