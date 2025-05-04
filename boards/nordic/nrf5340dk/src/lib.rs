@@ -108,10 +108,15 @@ static STRINGS: &'static [&'static str] = &[
 ];
 
 // The nRF52840DK LEDs (see back of board)
-const LED1_PIN: Pin = Pin::P0_28;
-const LED2_PIN: Pin = Pin::P0_29;
-const LED3_PIN: Pin = Pin::P0_30;
-const LED4_PIN: Pin = Pin::P0_31;
+// const LED1_PIN: Pin = Pin::P0_28;
+// const LED2_PIN: Pin = Pin::P0_29;
+// const LED3_PIN: Pin = Pin::P0_30;
+// const LED4_PIN: Pin = Pin::P0_31;
+
+// The nrf53 demo board LEDs
+const LEDG_PIN: Pin = Pin::P0_24;
+const LEDR_PIN: Pin = Pin::P0_26;
+const LEDB_PIN: Pin = Pin::P1_08;
 
 // The nRF52840DK buttons (see back of board)
 const BUTTON1_PIN: Pin = Pin::P0_23;
@@ -246,7 +251,8 @@ pub struct Platform {
     led: &'static capsules_core::led::LedDriver<
         'static,
         kernel::hil::led::LedLow<'static, nrf5340::gpio::GPIOPin<'static>>,
-        4,
+        // 4,
+        3,
     >,
     rng: &'static RngDriver,
     // adc: &'static capsules_core::adc::AdcDedicated<'static, nrf5340::adc::Adc<'static>>,
@@ -468,9 +474,12 @@ pub unsafe fn start() -> (
 
     // Configure kernel debug GPIOs as early as possible.
     kernel::debug::assign_gpios(
-        Some(&nrf5340_peripherals.gpio_port[LED1_PIN]),
-        Some(&nrf5340_peripherals.gpio_port[LED2_PIN]),
-        Some(&nrf5340_peripherals.gpio_port[LED3_PIN]),
+        // Some(&nrf5340_peripherals.gpio_port[LED1_PIN]),
+        // Some(&nrf5340_peripherals.gpio_port[LED2_PIN]),
+        // Some(&nrf5340_peripherals.gpio_port[LED3_PIN]),
+        Some(&nrf5340_peripherals.gpio_port[LEDR_PIN]),
+        Some(&nrf5340_peripherals.gpio_port[LEDG_PIN]),
+        Some(&nrf5340_peripherals.gpio_port[LEDB_PIN]),
     );
 
     // Choose the channel for serial output. This board can be configured to use
@@ -592,10 +601,13 @@ pub unsafe fn start() -> (
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, nrf5340::gpio::GPIOPin>,
-        LedLow::new(&nrf5340_peripherals.gpio_port[LED1_PIN]),
-        LedLow::new(&nrf5340_peripherals.gpio_port[LED2_PIN]),
-        LedLow::new(&nrf5340_peripherals.gpio_port[LED3_PIN]),
-        LedLow::new(&nrf5340_peripherals.gpio_port[LED4_PIN]),
+        // LedLow::new(&nrf5340_peripherals.gpio_port[LED1_PIN]),
+        // LedLow::new(&nrf5340_peripherals.gpio_port[LED2_PIN]),
+        // LedLow::new(&nrf5340_peripherals.gpio_port[LED3_PIN]),
+        // LedLow::new(&nrf5340_peripherals.gpio_port[LED4_PIN]),
+        LedLow::new(&nrf5340_peripherals.gpio_port[LEDR_PIN]),
+        LedLow::new(&nrf5340_peripherals.gpio_port[LEDG_PIN]),
+        LedLow::new(&nrf5340_peripherals.gpio_port[LEDB_PIN]),
     ));
 
     //--------------------------------------------------------------------------
