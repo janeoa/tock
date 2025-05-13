@@ -111,5 +111,6 @@ pub mod touch;
 pub mod tsl2561;
 pub mod usb;
 pub use usb::usb_ctap;
+pub mod mock_entropy;
 pub mod usb_hid_driver;
 pub mod virtual_kv;
