@@ -22,7 +22,8 @@ impl<'a> MockEntropy32<'a> {
 impl<'a> Entropy32<'a> for MockEntropy32<'a> {
     fn get(&self) -> Result<(), ErrorCode> {
         if let Some(client) = self.client.take() {
-            client.entropy_available(&mut MockEntropyIter(self), Ok(())); // Provide the next value
+            client.entropy_available(&mut MockEntropyIter(self), Ok(()));
+            self.client.set(client);
         }
         Ok(())
     }
