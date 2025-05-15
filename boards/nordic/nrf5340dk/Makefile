@@ -32,7 +32,7 @@ flash-openocd: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 
 .PHONY: flash-nrfjprog-debug
 flash-nrfjprog-debug: 
-	nrfjprog -d --program $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).bin || exit 1
+	nrfjprog -d --program $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).bin --chiperase || exit 1
 
 # Upload the kernel over serial/bootloader
 .PHONY: program
