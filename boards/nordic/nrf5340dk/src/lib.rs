@@ -76,9 +76,10 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 // use capsules_extra::net::ieee802154::MacAddress;
 // use capsules_extra::net::ipv6::ip_utils::IPAddr;
 // use crate::usb_ctap;
-use capsules_extra::mock_entropy;
+use capsules_extra::adc_entropy;
 use capsules_extra::usb_ctap;
 use kernel::component::Component;
+use kernel::hil::adc::Adc;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 #[allow(unused_imports)]
@@ -185,7 +186,8 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 //------------------------------------------------------------------------------
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf5340::rtc::Rtc<'static>>;
-type RngDriver = components::rng::RngComponentType<mock_entropy::MockEntropy32<'static>>;
+type RngDriver =
+    components::rng::RngComponentType<adc_entropy::AdcEntropy<'static, nrf5340::adc::Adc<'static>>>;
 
 // TicKV
 type Mx25r6435f = components::mx25r6435f::Mx25r6435fComponentType<
@@ -696,16 +698,21 @@ pub unsafe fn start() -> (
     //     &base_peripherals.trng,
     // )
     // .finalize(components::rng_component_static!(nrf5340::trng::Trng));
-    let entropy = static_init!(
-        mock_entropy::MockEntropy32<'static>,
-        mock_entropy::MockEntropy32::new()
-    );
 
-    let rng =
-        components::rng::RngComponent::new(board_kernel, capsules_core::rng::DRIVER_NUM, entropy)
-            .finalize(components::rng_component_static!(
-                mock_entropy::MockEntropy32
-            ));
+    //--------------------------------------------------------------------------
+    // MOCK
+    //--------------------------------------------------------------------------
+
+    // let entropy = static_init!(
+    //     mock_entropy::MockEntropy32<'static>,
+    //     mock_entropy::MockEntropy32::new()
+    // );
+
+    // let rng =
+    //     components::rng::RngComponent::new(board_kernel, capsules_core::rng::DRIVER_NUM, entropy)
+    //         .finalize(components::rng_component_static!(
+    //             mock_entropy::MockEntropy32
+    //         ));
 
     //--------------------------------------------------------------------------
     // ADC
@@ -731,6 +738,30 @@ pub unsafe fn start() -> (
     // .finalize(components::adc_dedicated_component_static!(
     //     nrf5340::adc::Adc
     // ));
+
+    let adc_entropy_channel = static_init!(
+        nrf5340::adc::AdcChannelSetup,
+        nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput1),
+    );
+
+    // Initialize adc_entropy with the ADC hardware directly
+    let adc_entropy = static_init!(
+        adc_entropy::AdcEntropy<'static, nrf5340::adc::Adc>,
+        adc_entropy::AdcEntropy::new(&base_peripherals.adc, adc_entropy_channel)
+    );
+
+    // Set the ADC client to adc_entropy
+    base_peripherals.adc.set_client(adc_entropy);
+
+    // Use adc_entropy as the entropy source for RNG
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules_core::rng::DRIVER_NUM,
+        adc_entropy,
+    )
+    .finalize(components::rng_component_static!(
+        adc_entropy::AdcEntropy<'static, nrf5340::adc::Adc>
+    ));
 
     //--------------------------------------------------------------------------
     // SPI
