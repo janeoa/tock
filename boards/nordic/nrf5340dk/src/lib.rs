@@ -113,6 +113,10 @@ const LED2_PIN: Pin = Pin::P0_29;
 const LED3_PIN: Pin = Pin::P0_30;
 const LED4_PIN: Pin = Pin::P0_31;
 
+// Pin for capacitive touch sensor
+const TOUCH_PIN1: Pin = Pin::P0_03; // First touch sensor pin
+const TOUCH_PIN2: Pin = Pin::P0_04; // Second touch sensor pin
+
 // The nRF52840DK buttons (see back of board)
 const BUTTON1_PIN: Pin = Pin::P0_23;
 const BUTTON2_PIN: Pin = Pin::P0_24;
@@ -279,6 +283,10 @@ pub struct Platform {
     >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm33::systick::SysTick,
+    // capacitive_touch: &'static capsules_extra::capacitive_touch::CapacitiveTouchSensor<
+    //     'static,
+    //     VirtualMuxAlarm<'static, nrf5340::rtc::Rtc<'static>>,
+    // >,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -612,6 +620,30 @@ pub unsafe fn start() -> (
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(nrf5340::rtc::Rtc));
+
+    //--------------------------------------------------------------------------
+    // CAPACITIVE TOUCH
+    //--------------------------------------------------------------------------
+
+    let touch_alarm = static_init!(
+        VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+
+    // let capacitive_touch = components::capacitive_touch::CapacitiveTouchComponent::new(
+    //     board_kernel,
+    //     capsules_extra::capacitive_touch::DRIVER_NUM,
+    // components::capacitive_touch_component_helper!(
+    //     nrf5340::gpio::GPIOPin,
+    //     touch_alarm,
+    //     (&nrf5340_peripherals.gpio_port[TOUCH_PIN1]),
+    //     (&nrf5340_peripherals.gpio_port[TOUCH_PIN2])
+    // ),
+    // );
+    // .finalize(components::capacitive_touch_component_static!());
+
+    // Set up the alarm client
+    // touch_alarm.set_alarm_client(capacitive_touch);s
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG
@@ -983,6 +1015,7 @@ pub unsafe fn start() -> (
     let platform = Platform {
         button,
         // ble_radio,
+        // capacitive_touch,
         pconsole,
         console,
         led,
