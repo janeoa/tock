@@ -80,7 +80,9 @@ use capsules_extra::adc_entropy;
 use capsules_extra::usb_ctap;
 use kernel::component::Component;
 use kernel::hil::adc::Adc;
+use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedLow;
+use kernel::hil::time::Alarm;
 use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
@@ -283,10 +285,10 @@ pub struct Platform {
     >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm33::systick::SysTick,
-    // capacitive_touch: &'static capsules_extra::capacitive_touch::CapacitiveTouchSensor<
-    //     'static,
-    //     VirtualMuxAlarm<'static, nrf5340::rtc::Rtc<'static>>,
-    // >,
+    capacitive_touch: &'static capsules_extra::capacitive_touch::CapacitiveTouchSensor<
+        'static,
+        VirtualMuxAlarm<'static, nrf5340::rtc::Rtc<'static>>,
+    >,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -311,6 +313,7 @@ impl SyscallDriverLookup for Platform {
             // capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
+            capsules_extra::capacitive_touch::DRIVER_NUM => f(Some(self.capacitive_touch)),
             _ => f(None),
         }
     }
@@ -438,6 +441,13 @@ impl KernelResources<Chip> for Platform {
 
 //     (eui64_driver, ieee802154_driver, udp_driver)
 // }
+
+static mut CAPACITIVE_TOUCH: Option<
+    &'static capsules_extra::capacitive_touch::CapacitiveTouchSensor<
+        'static,
+        VirtualMuxAlarm<'static, nrf5340::rtc::Rtc<'static>>,
+    >,
+> = None;
 
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
@@ -622,30 +632,6 @@ pub unsafe fn start() -> (
     .finalize(components::alarm_component_static!(nrf5340::rtc::Rtc));
 
     //--------------------------------------------------------------------------
-    // CAPACITIVE TOUCH
-    //--------------------------------------------------------------------------
-
-    let touch_alarm = static_init!(
-        VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-
-    // let capacitive_touch = components::capacitive_touch::CapacitiveTouchComponent::new(
-    //     board_kernel,
-    //     capsules_extra::capacitive_touch::DRIVER_NUM,
-    // components::capacitive_touch_component_helper!(
-    //     nrf5340::gpio::GPIOPin,
-    //     touch_alarm,
-    //     (&nrf5340_peripherals.gpio_port[TOUCH_PIN1]),
-    //     (&nrf5340_peripherals.gpio_port[TOUCH_PIN2])
-    // ),
-    // );
-    // .finalize(components::capacitive_touch_component_static!());
-
-    // Set up the alarm client
-    // touch_alarm.set_alarm_client(capacitive_touch);s
-
-    //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG
     //--------------------------------------------------------------------------
 
@@ -721,32 +707,6 @@ pub unsafe fn start() -> (
     // ));
 
     //--------------------------------------------------------------------------
-    // RANDOM NUMBER GENERATOR
-    //--------------------------------------------------------------------------
-
-    // let rng = components::rng::RngComponent::new(
-    //     board_kernel,
-    //     capsules_core::rng::DRIVER_NUM,
-    //     &base_peripherals.trng,
-    // )
-    // .finalize(components::rng_component_static!(nrf5340::trng::Trng));
-
-    //--------------------------------------------------------------------------
-    // MOCK
-    //--------------------------------------------------------------------------
-
-    // let entropy = static_init!(
-    //     mock_entropy::MockEntropy32<'static>,
-    //     mock_entropy::MockEntropy32::new()
-    // );
-
-    // let rng =
-    //     components::rng::RngComponent::new(board_kernel, capsules_core::rng::DRIVER_NUM, entropy)
-    //         .finalize(components::rng_component_static!(
-    //             mock_entropy::MockEntropy32
-    //         ));
-
-    //--------------------------------------------------------------------------
     // ADC
     //--------------------------------------------------------------------------
 
@@ -771,6 +731,10 @@ pub unsafe fn start() -> (
     //     nrf5340::adc::Adc
     // ));
 
+    //--------------------------------------------------------------------------
+    // RANDOM NUMBER GENERATOR
+    //--------------------------------------------------------------------------
+
     let adc_entropy_channel = static_init!(
         nrf5340::adc::AdcChannelSetup,
         nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput1),
@@ -794,6 +758,34 @@ pub unsafe fn start() -> (
     .finalize(components::rng_component_static!(
         adc_entropy::AdcEntropy<'static, nrf5340::adc::Adc>
     ));
+
+    //--------------------------------------------------------------------------
+    // CAPACITIVE TOUCH
+    //--------------------------------------------------------------------------
+
+    // Create a virtual alarm for the capacitive touch sensor
+    let touch_alarm = static_init!(
+        VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+
+    let touch_pin = &nrf5340_peripherals.gpio_port[Pin::P0_13]; // Using LED1 pin as an example
+    let capacitive_touch = static_init!(
+        capsules_extra::capacitive_touch::CapacitiveTouchSensor<
+            'static,
+            VirtualMuxAlarm<'static, nrf5340::rtc::Rtc<'static>>,
+        >,
+        capsules_extra::capacitive_touch::CapacitiveTouchSensor::new(touch_pin, touch_alarm)
+    );
+
+    // Set up the pin for the touch sensor
+    touch_pin.make_input();
+
+    // Set the capacitive touch sensor as the client of the alarm
+    touch_alarm.set_alarm_client(capacitive_touch);
+
+    // Store the capacitive touch sensor in the static variable
+    CAPACITIVE_TOUCH = Some(capacitive_touch);
 
     //--------------------------------------------------------------------------
     // SPI
@@ -1015,7 +1007,6 @@ pub unsafe fn start() -> (
     let platform = Platform {
         button,
         // ble_radio,
-        // capacitive_touch,
         pconsole,
         console,
         led,
@@ -1036,6 +1027,7 @@ pub unsafe fn start() -> (
         usb,
         scheduler,
         systick: cortexm33::systick::SysTick::new_with_calibration(64000000),
+        capacitive_touch,
     };
 
     // let _ = platform.pconsole.start();
