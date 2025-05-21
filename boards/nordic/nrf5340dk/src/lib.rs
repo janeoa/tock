@@ -80,9 +80,12 @@ use capsules_extra::adc_entropy;
 use capsules_extra::usb_ctap;
 use kernel::component::Component;
 use kernel::hil::adc::Adc;
-use kernel::hil::gpio::Configure;
+use kernel::hil::gpio;
+
+use kernel::hil::gpio::InterruptWithValue;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Alarm;
+use kernel::hil::time::ConvertTicks;
 use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
@@ -92,8 +95,8 @@ use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf5340::gpio::Pin;
 use nrf5340::interrupt_service::Nrf5340DefaultPeripherals;
+use nrf5340::rtc::Rtc;
 use nrf53_components::{UartChannel, UartPins};
-
 const VENDOR_ID: u16 = 0x1915; // Nordic Semiconductor
 const PRODUCT_ID: u16 = 0x521f; // nRF5340 Dongle (PCA10059)
 static STRINGS: &'static [&'static str] = &[
@@ -115,9 +118,13 @@ const LED2_PIN: Pin = Pin::P0_29;
 const LED3_PIN: Pin = Pin::P0_30;
 const LED4_PIN: Pin = Pin::P0_31;
 
+// Capacitive touch pins
+const CAP_TOUCH1_PIN: Pin = Pin::P0_13; // Choose an appropriate pin
+const CAP_TOUCH2_PIN: Pin = Pin::P0_14; // Choose an appropriate pin
+
 // Pin for capacitive touch sensor
-const TOUCH_PIN1: Pin = Pin::P0_03; // First touch sensor pin
-const TOUCH_PIN2: Pin = Pin::P0_04; // Second touch sensor pin
+// const TOUCH_PIN1: Pin = Pin::P0_03; // First touch sensor pin
+// const TOUCH_PIN2: Pin = Pin::P0_04; // Second touch sensor pin
 
 // The nRF52840DK buttons (see back of board)
 const BUTTON1_PIN: Pin = Pin::P0_23;
@@ -240,7 +247,7 @@ pub struct Platform {
     // nrf5340::ble_radio::Radio<'static>,
     // VirtualMuxAlarm<'static, nrf5340::rtc::Rtc<'static>>,
     // >,
-    button: &'static capsules_core::button::Button<'static, nrf5340::gpio::GPIOPin<'static>>,
+    // button: &'static capsules_core::button::Button<'static, nrf5340::gpio::GPIOPin<'static>>,
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
         { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
@@ -285,9 +292,12 @@ pub struct Platform {
     >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm33::systick::SysTick,
-    capacitive_touch: &'static capsules_extra::capacitive_touch::CapacitiveTouchSensor<
+    capacitive_touch: &'static capsules_core::button::Button<
         'static,
-        VirtualMuxAlarm<'static, nrf5340::rtc::Rtc<'static>>,
+        capsules_core::capacitive_touch::CapacitiveTouchSensor<
+            'static,
+            VirtualMuxAlarm<'static, nrf5340::rtc::Rtc<'static>>,
+        >,
     >,
 }
 
@@ -303,7 +313,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             // capsules_extra::usb_ctap::DRIVER_NUM => f(Some(self.usb)),
             capsules_extra::usb::usb_ctap::DRIVER_NUM => f(Some(self.usb)),
-            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.capacitive_touch)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             // capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             // capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
@@ -313,7 +323,6 @@ impl SyscallDriverLookup for Platform {
             // capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
-            capsules_extra::capacitive_touch::DRIVER_NUM => f(Some(self.capacitive_touch)),
             _ => f(None),
         }
     }
@@ -442,13 +451,6 @@ impl KernelResources<Chip> for Platform {
 //     (eui64_driver, ieee802154_driver, udp_driver)
 // }
 
-static mut CAPACITIVE_TOUCH: Option<
-    &'static capsules_extra::capacitive_touch::CapacitiveTouchSensor<
-        'static,
-        VirtualMuxAlarm<'static, nrf5340::rtc::Rtc<'static>>,
-    >,
-> = None;
-
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
@@ -574,35 +576,34 @@ pub unsafe fn start() -> (
     //--------------------------------------------------------------------------
     // BUTTONS
     //--------------------------------------------------------------------------
-
-    let button = components::button::ButtonComponent::new(
-        board_kernel,
-        capsules_core::button::DRIVER_NUM,
-        components::button_component_helper!(
-            nrf5340::gpio::GPIOPin,
-            (
-                &nrf5340_peripherals.gpio_port[BUTTON1_PIN],
-                kernel::hil::gpio::ActivationMode::ActiveLow,
-                kernel::hil::gpio::FloatingState::PullUp
-            ),
-            (
-                &nrf5340_peripherals.gpio_port[BUTTON2_PIN],
-                kernel::hil::gpio::ActivationMode::ActiveLow,
-                kernel::hil::gpio::FloatingState::PullUp
-            ),
-            (
-                &nrf5340_peripherals.gpio_port[BUTTON3_PIN],
-                kernel::hil::gpio::ActivationMode::ActiveLow,
-                kernel::hil::gpio::FloatingState::PullUp
-            ),
-            (
-                &nrf5340_peripherals.gpio_port[BUTTON4_PIN],
-                kernel::hil::gpio::ActivationMode::ActiveLow,
-                kernel::hil::gpio::FloatingState::PullUp
-            )
-        ),
-    )
-    .finalize(components::button_component_static!(nrf5340::gpio::GPIOPin));
+    // let button = components::button::ButtonComponent::new(
+    //     board_kernel,
+    //     capsules_core::button::DRIVER_NUM,
+    //     components::button_component_helper!(
+    //         nrf5340::gpio::GPIOPin,
+    //         (
+    //             &nrf5340_peripherals.gpio_port[BUTTON1_PIN],
+    //             kernel::hil::gpio::ActivationMode::ActiveLow,
+    //             kernel::hil::gpio::FloatingState::PullUp
+    //         ),
+    //         (
+    //             &nrf5340_peripherals.gpio_port[BUTTON2_PIN],
+    //             kernel::hil::gpio::ActivationMode::ActiveLow,
+    //             kernel::hil::gpio::FloatingState::PullUp
+    //         ),
+    //         (
+    //             &nrf5340_peripherals.gpio_port[BUTTON3_PIN],
+    //             kernel::hil::gpio::ActivationMode::ActiveLow,
+    //             kernel::hil::gpio::FloatingState::PullUp
+    //         ),
+    //         (
+    //             &nrf5340_peripherals.gpio_port[BUTTON4_PIN],
+    //             kernel::hil::gpio::ActivationMode::ActiveLow,
+    //             kernel::hil::gpio::FloatingState::PullUp
+    //         )
+    //     ),
+    // )
+    // .finalize(components::button_component_static!(nrf5340::gpio::GPIOPin));
 
     //--------------------------------------------------------------------------
     // LEDs
@@ -732,6 +733,83 @@ pub unsafe fn start() -> (
     // ));
 
     //--------------------------------------------------------------------------
+    // CAPACITIVE TOUCH SENSORS
+    //--------------------------------------------------------------------------
+
+    // Create virtual alarms for the capacitive touch sensors
+    let cap_touch_alarm1 = static_init!(
+        VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    cap_touch_alarm1.setup();
+
+    // Create capacitive touch sensor 1
+    let cap_touch1 = static_init!(
+        capsules_core::capacitive_touch::CapacitiveTouchSensor<
+            'static,
+            VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
+        >,
+        capsules_core::capacitive_touch::CapacitiveTouchSensor::new(
+            &nrf5340_peripherals.gpio_port[CAP_TOUCH1_PIN],
+            cap_touch_alarm1,
+            cap_touch_alarm1.ticks_from_ms(10),  // Threshold: 10ms
+            cap_touch_alarm1.ticks_from_ms(100), // Scan interval: 100ms
+        )
+    );
+    cap_touch_alarm1.set_alarm_client(cap_touch1);
+
+    // Create a button component that uses the capacitive touch sensor directly
+    // First, create an array of capacitive touch sensors with their configuration
+    // Wrap the capacitive touch sensor in InterruptValueWrapper to match the expected type
+    let cap_touch1_wrapper = static_init!(
+        gpio::InterruptValueWrapper<
+            'static,
+            capsules_core::capacitive_touch::CapacitiveTouchSensor<
+                'static,
+                VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
+            >,
+        >,
+        gpio::InterruptValueWrapper::new(cap_touch1)
+    );
+
+    let cap_touch_pins = static_init!(
+        [(
+            &'static gpio::InterruptValueWrapper<
+                'static,
+                capsules_core::capacitive_touch::CapacitiveTouchSensor<
+                    'static,
+                    VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
+                >,
+            >,
+            gpio::ActivationMode,
+            gpio::FloatingState
+        ); 1],
+        [(
+            cap_touch1_wrapper,
+            gpio::ActivationMode::ActiveHigh,
+            gpio::FloatingState::PullNone
+        )]
+    );
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    // Create the button capsule using the capacitive touch sensors
+    let cap_touch_button = static_init!(
+        capsules_core::button::Button<
+            'static,
+            capsules_core::capacitive_touch::CapacitiveTouchSensor<
+                'static,
+                VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
+            >,
+        >,
+        capsules_core::button::Button::new(
+            cap_touch_pins,
+            board_kernel.create_grant(capsules_core::button::DRIVER_NUM, &grant_cap)
+        )
+    );
+
+    // Set the button capsule as the client for the capacitive touch sensor
+    cap_touch1.set_client(cap_touch_button);
+
+    //--------------------------------------------------------------------------
     // RANDOM NUMBER GENERATOR
     //--------------------------------------------------------------------------
 
@@ -758,34 +836,6 @@ pub unsafe fn start() -> (
     .finalize(components::rng_component_static!(
         adc_entropy::AdcEntropy<'static, nrf5340::adc::Adc>
     ));
-
-    //--------------------------------------------------------------------------
-    // CAPACITIVE TOUCH
-    //--------------------------------------------------------------------------
-
-    // Create a virtual alarm for the capacitive touch sensor
-    let touch_alarm = static_init!(
-        VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-
-    let touch_pin = &nrf5340_peripherals.gpio_port[Pin::P0_13]; // Using LED1 pin as an example
-    let capacitive_touch = static_init!(
-        capsules_extra::capacitive_touch::CapacitiveTouchSensor<
-            'static,
-            VirtualMuxAlarm<'static, nrf5340::rtc::Rtc<'static>>,
-        >,
-        capsules_extra::capacitive_touch::CapacitiveTouchSensor::new(touch_pin, touch_alarm)
-    );
-
-    // Set up the pin for the touch sensor
-    touch_pin.make_input();
-
-    // Set the capacitive touch sensor as the client of the alarm
-    touch_alarm.set_alarm_client(capacitive_touch);
-
-    // Store the capacitive touch sensor in the static variable
-    CAPACITIVE_TOUCH = Some(capacitive_touch);
 
     //--------------------------------------------------------------------------
     // SPI
@@ -1005,7 +1055,7 @@ pub unsafe fn start() -> (
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
-        button,
+        // button: cap_touch_button,
         // ble_radio,
         pconsole,
         console,
@@ -1027,7 +1077,7 @@ pub unsafe fn start() -> (
         usb,
         scheduler,
         systick: cortexm33::systick::SysTick::new_with_calibration(64000000),
-        capacitive_touch,
+        capacitive_touch: cap_touch_button,
     };
 
     // let _ = platform.pconsole.start();

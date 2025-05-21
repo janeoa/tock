@@ -57,6 +57,7 @@
 
 use core::cell::Cell;
 
+use kernel::debug;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue};
@@ -162,6 +163,7 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
             // enable interrupts for a button
             1 => {
                 if data < pins.len() {
+                    debug!("[Button] Enabling interrupts for button {}", data);
                     self.apps
                         .enter(processid, |cntr, _| {
                             cntr.subscribe_map |= 1 << data;
@@ -199,7 +201,19 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
 
                     // if not, disable the interrupt
                     if interrupt_count.get() == 0 {
+                        debug!(
+                            "[Button] No apps listening for button {}, disabling interrupts",
+                            data
+                        );
+                        // For capacitive touch sensors, this will disable scanning
+                        // This is handled by the disable_interrupts method in the capacitive touch sensor
                         self.pins[data].0.disable_interrupts();
+                    } else {
+                        debug!(
+                            "[Button] {} apps still listening for button {}",
+                            interrupt_count.get(),
+                            data
+                        );
                     }
 
                     res
@@ -209,9 +223,15 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
             // read input
             3 => {
                 if data >= pins.len() {
+                    debug!("[Button] Read state failed: invalid button index {}", data);
                     CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
                 } else {
+                    debug!("[Button] Reading state for button {}", data);
                     let button_state = self.get_button_state(data as u32);
+                    // debug!(
+                    //     "[Button] Button {} state: {:?} )",
+                    //     data, button_state as u32
+                    // );
                     CommandReturn::success_u32(button_state as u32)
                 }
             }
@@ -228,24 +248,40 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
 
 impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
     fn fired(&self, pin_num: u32) {
+        debug!("[Button] Interrupt fired for button {}", pin_num);
         // Read the value of the pin and get the button state.
         let button_state = self.get_button_state(pin_num);
+        // debug!("[Button] Button {} state: {:?}", pin_num, button_state);
         let interrupt_count = Cell::new(0);
 
         // schedule callback with the pin number and value
         self.apps.each(|_, cntr, upcalls| {
             if cntr.subscribe_map & (1 << pin_num) != 0 {
                 interrupt_count.set(interrupt_count.get() + 1);
+                // debug!(
+                //     "[Button] Scheduling upcall for button {} with state {:?}",
+                //     pin_num, button_state
+                // );
                 upcalls
                     .schedule_upcall(UPCALL_NUM, (pin_num as usize, button_state as usize, 0))
                     .ok();
             }
         });
 
+        debug!(
+            "[Button] {} apps notified about button {} state change",
+            interrupt_count.get(),
+            pin_num
+        );
+
         // It's possible we got an interrupt for a process that has since died
         // (and didn't unregister the interrupt). Lazily disable interrupts for
         // this button if so.
         if interrupt_count.get() == 0 {
+            debug!(
+                "[Button] No apps listening for button {}, disabling interrupts",
+                pin_num
+            );
             self.pins[pin_num as usize].0.disable_interrupts();
         }
     }
