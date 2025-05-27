@@ -318,6 +318,8 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtapHID<'a, 'b, C> {
     }
 
     pub fn receive_packet(&'a self, app: &mut App, kernel_grant: &GrantKernelData) {
+        debug!("recieved packet");
+
         if self.pending_out.get() {
             // The previous packet has not yet been received, reject the new one.
         } else {
@@ -355,8 +357,6 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtapHID<'a, 'b, C> {
             for (i, x) in s.out_buffer.buf.iter().enumerate() {
                 buf[i] = x.get();
             }
-
-            assert!(!s.delayed_out.get());
 
             // Notify the client
             if self
@@ -521,10 +521,30 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for ClientCtap
                     // Cannot process this packet
                     hil::usb::OutResult::Error
                 } else {
-                    if self.send_packet_to_client(endpoint, None, None) {
-                        hil::usb::OutResult::Ok
+                    // First check if there's a delayed packet for this endpoint
+                    if let Some(s) = self.get_endpoint(endpoint) {
+                        if s.delayed_out.get() {
+                            // Try to handle the delayed packet first
+                            if self.send_packet_to_client(endpoint, None, None) {
+                                // If successful, we can now process the new packet
+                                if self.send_packet_to_client(endpoint, None, None) {
+                                    hil::usb::OutResult::Ok
+                                } else {
+                                    hil::usb::OutResult::Delay
+                                }
+                            } else {
+                                hil::usb::OutResult::Delay
+                            }
+                        } else {
+                            // No delayed packet, process normally
+                            if self.send_packet_to_client(endpoint, None, None) {
+                                hil::usb::OutResult::Ok
+                            } else {
+                                hil::usb::OutResult::Delay
+                            }
+                        }
                     } else {
-                        hil::usb::OutResult::Delay
+                        hil::usb::OutResult::Error
                     }
                 }
             }
