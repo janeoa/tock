@@ -38,6 +38,12 @@ pub struct CapacitiveTouchSensor<'a, A: Alarm<'a>> {
 
     // Whether scanning is enabled
     enabled: Cell<bool>,
+
+    // Flag to track if a disable request is pending (waiting for measurement to complete)
+    disable_pending: Cell<bool>,
+
+    // Flag to track if at least one measurement has completed
+    measurement_completed: Cell<bool>,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -66,6 +72,8 @@ impl<'a, A: Alarm<'a>> CapacitiveTouchSensor<'a, A> {
             scan_interval: Cell::new(scan_interval),
             pin_id: Cell::new(0),
             enabled: Cell::new(false),
+            disable_pending: Cell::new(false),
+            measurement_completed: Cell::new(false),
         }
     }
 
@@ -78,10 +86,6 @@ impl<'a, A: Alarm<'a>> CapacitiveTouchSensor<'a, A> {
     }
 
     pub fn start_measurement(&self) {
-        debug!(
-            "[CapTouch] Starting measurement for pin {}",
-            self.pin_id.get()
-        );
         // Configure pin as output and set high to charge the capacitor
         self.pin.make_output();
         self.pin.set();
@@ -89,109 +93,103 @@ impl<'a, A: Alarm<'a>> CapacitiveTouchSensor<'a, A> {
 
         // Set alarm for end of charging phase
         let now = self.alarm.now();
-        let charge_time = A::Ticks::from(10); // Short charging time, adjust as needed
-        debug!("[CapTouch] Charging for {} ticks", charge_time.into_u32());
+        // Increase charging time to ensure capacitor is fully charged
+        let charge_time = A::Ticks::from(50); // Longer charging time
         self.alarm.set_alarm(now, charge_time);
     }
 
     fn start_discharge(&self) {
-        debug!(
-            "[CapTouch] Starting discharge phase for pin {}",
-            self.pin_id.get()
-        );
-        // Switch to input mode to let the capacitor discharge
+        // Switch to input mode with pull-up to better detect touch
+        // The pull-up will keep the pin HIGH, but a touch will pull it LOW faster
         self.pin.make_input();
+        // Set floating state to pull-up if supported by the hardware
+        self.pin.set_floating_state(gpio::FloatingState::PullUp);
+
         self.state.set(SensorState::Discharging);
 
         // Start measuring discharge time
         self.next_scan.set(self.alarm.now());
-        debug!(
-            "[CapTouch] Discharge measurement started at tick {}",
-            self.next_scan.get().into_u32()
-        );
+
+        // Take samples much earlier in the discharge cycle
+        // First sample at 1 tick to catch the very beginning of discharge
+        let now = self.alarm.now();
+        self.alarm.set_alarm(now, A::Ticks::from(1));
     }
 
     fn check_discharge(&self) -> bool {
-        // Check if pin has discharged (gone low)
-        let is_discharged = !self.pin.read();
+        // Read the pin state
+        let pin_state = self.pin.read();
+        let now = self.alarm.now();
+        let elapsed = now.wrapping_sub(self.next_scan.get());
+
+        // Log the sample
         debug!(
-            "[CapTouch] Pin {} discharged: {}",
+            "[CapTouch-SAMPLE] PIN:{} TIME:{} PIN_STATE:{}",
             self.pin_id.get(),
-            is_discharged
+            elapsed.into_u32(),
+            if pin_state { "HIGH" } else { "LOW" }
         );
 
-        if is_discharged {
-            // Calculate discharge time
-            let discharge_time = self.alarm.now().wrapping_sub(self.next_scan.get());
-            debug!(
-                "[CapTouch] Discharge time: {} ticks",
-                discharge_time.into_u32()
-            );
+        // Take very early samples (1, 2, 3, 5, 10, 15 ticks)
+        // This should catch the difference between touched and untouched states
+        if elapsed < A::Ticks::from(15) {
+            // Schedule next sample with increasing intervals
+            let now = self.alarm.now();
+            let next_interval = if elapsed < A::Ticks::from(3) {
+                // Very frequent samples at the beginning (1, 2, 3 ticks)
+                A::Ticks::from(1)
+            } else if elapsed < A::Ticks::from(5) {
+                // Then slightly longer intervals (5 ticks)
+                A::Ticks::from(2)
+            } else {
+                // Then even longer intervals (10, 15 ticks)
+                A::Ticks::from(5)
+            };
+            self.alarm.set_alarm(now, next_interval);
+            return false;
+        }
 
-            // Determine if touched based on threshold
-            // Compare with threshold to determine if touched
-            let threshold = self.threshold.get();
-            let was_touched = self.is_touched.get();
-            let is_touched = discharge_time > threshold;
-            debug!(
-                "[CapTouch] Pin {} - Discharge time: {} ticks, Threshold: {} ticks, Touched: {}",
-                self.pin_id.get(),
-                discharge_time.into_u32(),
-                threshold.into_u32(),
-                is_touched
-            );
-            self.is_touched.set(is_touched);
-            if let Some(client) = self.client.get() {
-                client.fired();
-            }
-            if let Some(client) = self.client_with_value.get() {
-                client.fired(self.pin_id.get());
-            }
+        // After all samples, make a decision
+        debug!(
+            "[CapTouch-TIMING] PIN:{} FINAL_TIME:{} FINAL_STATE:{} THRESHOLD:{}",
+            self.pin_id.get(),
+            elapsed.into_u32(),
+            if pin_state { "HIGH" } else { "LOW" },
+            self.threshold.get().into_u32()
+        );
 
-            // Return to idle state
-            self.state.set(SensorState::Idle);
+        // For testing purposes, always set to not touched
+        self.is_touched.set(false);
 
+        // Notify clients
+        if let Some(client) = self.client.get() {
+            client.fired();
+        }
+        if let Some(client) = self.client_with_value.get() {
+            client.fired(self.pin_id.get());
+        }
+
+        // Mark that we've completed at least one measurement
+        self.measurement_completed.set(true);
+
+        // Return to idle state
+        self.state.set(SensorState::Idle);
+
+        // Check if there's a pending disable request
+        if self.disable_pending.get() {
+            self.disable_pending.set(false);
+            self.disable();
+        } else {
             // Schedule next scan
             let now = self.alarm.now();
             self.next_scan
                 .set(now.wrapping_add(self.scan_interval.get()));
-
-            true
-        } else {
-            // Not discharged yet, check timeout
-            let now = self.alarm.now();
-            if now.wrapping_sub(self.next_scan.get()) > A::Ticks::from(1000) {
-                // Timeout value, adjust as needed
-                // Timeout - assume not touched
-                if self.is_touched.get() {
-                    self.is_touched.set(false);
-                    if let Some(client) = self.client.get() {
-                        client.fired();
-                    }
-                    if let Some(client) = self.client_with_value.get() {
-                        client.fired(self.pin_id.get());
-                    }
-                }
-
-                // Return to idle state
-                self.state.set(SensorState::Idle);
-
-                // Schedule next scan
-                self.next_scan
-                    .set(now.wrapping_add(self.scan_interval.get()));
-
-                true
-            } else {
-                false
-            }
         }
+
+        true
     }
 
     pub fn enable(&self) {
-        debug!(
-            "[CapTouch] Enabling capacitive touch sensor on pin {}",
-            self.pin_id.get()
-        );
         self.enabled.set(true);
         // Start scanning if currently idle
         if self.state.get() == SensorState::Idle {
@@ -200,10 +198,6 @@ impl<'a, A: Alarm<'a>> CapacitiveTouchSensor<'a, A> {
     }
 
     pub fn disable(&self) {
-        debug!(
-            "[CapTouch] Disabling capacitive touch sensor on pin {}",
-            self.pin_id.get()
-        );
         // Stop scanning
         self.enabled.set(false);
         self.state.set(SensorState::Idle);
@@ -215,54 +209,18 @@ impl<'a, A: Alarm<'a>> AlarmClient for CapacitiveTouchSensor<'a, A> {
     fn alarm(&self) {
         match self.state.get() {
             SensorState::Charging => {
-                debug!(
-                    "[CapTouch] Alarm fired: Charging phase complete for pin {}",
-                    self.pin_id.get()
-                );
                 // Charging phase complete, start discharge
                 self.start_discharge();
             }
             SensorState::Discharging => {
-                debug!(
-                    "[CapTouch] Alarm fired: Checking discharge for pin {}",
-                    self.pin_id.get()
-                );
-                // Check if discharged
-                if !self.check_discharge() {
-                    // Not discharged yet, check again soon
-                    let now = self.alarm.now();
-                    debug!(
-                        "[CapTouch] Pin {} not discharged yet, checking again in 1 tick",
-                        self.pin_id.get()
-                    );
-                    self.alarm.set_alarm(now, A::Ticks::from(1));
-                } else {
-                    // Discharge measurement complete, schedule next scan
-                    self.state.set(SensorState::Idle);
-                    let now = self.alarm.now();
-                    let next = now.wrapping_add(self.scan_interval.get());
-                    debug!(
-                        "[CapTouch] Pin {} discharge complete, next scan in {} ticks",
-                        self.pin_id.get(),
-                        self.scan_interval.get().into_u32()
-                    );
-                    self.alarm.set_alarm(next, A::Ticks::from(0));
-                }
+                // Check the pin state
+                self.check_discharge();
             }
             SensorState::Idle => {
                 // Only start a new scan if explicitly enabled
                 if self.enabled.get() {
-                    debug!(
-                        "[CapTouch] Alarm fired: Starting next scan for pin {}",
-                        self.pin_id.get()
-                    );
                     // Time for next scan
                     self.start_measurement();
-                } else {
-                    debug!(
-                        "[CapTouch] Alarm fired but scanning is disabled for pin {}",
-                        self.pin_id.get()
-                    );
                 }
             }
         }
@@ -338,21 +296,23 @@ impl<'a, A: Alarm<'a>> gpio::Interrupt<'a> for CapacitiveTouchSensor<'a, A> {
     }
 
     fn enable_interrupts(&self, _mode: InterruptEdge) {
-        debug!(
-            "[CapTouch] Enable interrupts called for pin {}, starting scanning",
-            self.pin_id.get()
-        );
+        // Reset the measurement completion flag
+        self.measurement_completed.set(false);
+        // Clear any pending disable requests
+        self.disable_pending.set(false);
         // Enable scanning when interrupts are enabled
         self.enable();
     }
 
     fn disable_interrupts(&self) {
-        debug!(
-            "[CapTouch] Disable interrupts called for pin {}, stopping scanning",
-            self.pin_id.get()
-        );
-        // Disable scanning when interrupts are disabled
-        self.disable();
+        if !self.measurement_completed.get() && self.state.get() != SensorState::Idle {
+            // If a measurement is in progress and we haven't completed at least one measurement,
+            // mark as pending but don't disable yet
+            self.disable_pending.set(true);
+        } else {
+            // Either we've completed at least one measurement or we're idle
+            self.disable();
+        }
     }
 
     fn is_pending(&self) -> bool {
@@ -368,22 +328,24 @@ impl<'a, A: Alarm<'a>> gpio::InterruptWithValue<'a> for CapacitiveTouchSensor<'a
     }
 
     fn enable_interrupts(&self, _mode: InterruptEdge) -> Result<(), ErrorCode> {
-        debug!(
-            "[CapTouch] Enable interrupts with value called for pin {}, starting scanning",
-            self.pin_id.get()
-        );
+        // Reset the measurement completion flag
+        self.measurement_completed.set(false);
+        // Clear any pending disable requests
+        self.disable_pending.set(false);
         // Enable scanning when interrupts are enabled
         self.enable();
         Ok(())
     }
 
     fn disable_interrupts(&self) {
-        debug!(
-            "[CapTouch] Disable interrupts with value called for pin {}, stopping scanning",
-            self.pin_id.get()
-        );
-        // Disable scanning when interrupts are disabled
-        self.disable();
+        if !self.measurement_completed.get() && self.state.get() != SensorState::Idle {
+            // If a measurement is in progress and we haven't completed at least one measurement,
+            // mark as pending but don't disable yet
+            self.disable_pending.set(true);
+        } else {
+            // Either we've completed at least one measurement or we're idle
+            self.disable();
+        }
     }
 
     fn is_pending(&self) -> bool {
@@ -403,11 +365,6 @@ impl<'a, A: Alarm<'a>> gpio::InterruptWithValue<'a> for CapacitiveTouchSensor<'a
 // Implementation of ClientWithValue trait
 impl<'a, A: Alarm<'a>> gpio::ClientWithValue for CapacitiveTouchSensor<'a, A> {
     fn fired(&self, value: u32) {
-        // This method is called when this sensor is used as a client for another interrupt source
-        // We can use this to handle external events that might affect the sensor
-        // For now, we just pass it to our own client if we have one
-        if let Some(client) = self.client_with_value.get() {
-            client.fired(value);
-        }
+        // This is called when the capacitive sensor is used as a client for another interrupt
     }
 }

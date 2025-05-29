@@ -163,7 +163,7 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
             // enable interrupts for a button
             1 => {
                 if data < pins.len() {
-                    debug!("[Button] Enabling interrupts for button {}", data);
+                    //debug!("[Button] Enabling interrupts for button {}", data);
                     self.apps
                         .enter(processid, |cntr, _| {
                             cntr.subscribe_map |= 1 << data;
@@ -223,15 +223,10 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
             // read input
             3 => {
                 if data >= pins.len() {
-                    debug!("[Button] Read state failed: invalid button index {}", data);
+                    //debug!("[Button] Read state failed: invalid button index {}", data);
                     CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
                 } else {
-                    debug!("[Button] Reading state for button {}", data);
                     let button_state = self.get_button_state(data as u32);
-                    // debug!(
-                    //     "[Button] Button {} state: {:?} )",
-                    //     data, button_state as u32
-                    // );
                     CommandReturn::success_u32(button_state as u32)
                 }
             }
@@ -248,10 +243,10 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
 
 impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
     fn fired(&self, pin_num: u32) {
-        debug!("[Button] Interrupt fired for button {}", pin_num);
+        //debug!("[Button] Interrupt fired for button {}", pin_num);
         // Read the value of the pin and get the button state.
         let button_state = self.get_button_state(pin_num);
-        // debug!("[Button] Button {} state: {:?}", pin_num, button_state);
+        // //debug!("[Button] Button {} state: {:?}", pin_num, button_state);
         let interrupt_count = Cell::new(0);
 
         // schedule callback with the pin number and value

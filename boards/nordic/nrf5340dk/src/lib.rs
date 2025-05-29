@@ -119,18 +119,13 @@ const LED3_PIN: Pin = Pin::P0_30;
 const LED4_PIN: Pin = Pin::P0_31;
 
 // Capacitive touch pins
-const CAP_TOUCH1_PIN: Pin = Pin::P0_13; // Choose an appropriate pin
-const CAP_TOUCH2_PIN: Pin = Pin::P0_14; // Choose an appropriate pin
-
-// Pin for capacitive touch sensor
-// const TOUCH_PIN1: Pin = Pin::P0_03; // First touch sensor pin
-// const TOUCH_PIN2: Pin = Pin::P0_04; // Second touch sensor pin
+const CAP_TOUCH1_PIN: Pin = Pin::P0_05; // Choose an appropriate pin
 
 // The nRF52840DK buttons (see back of board)
-const BUTTON1_PIN: Pin = Pin::P0_23;
-const BUTTON2_PIN: Pin = Pin::P0_24;
-const BUTTON3_PIN: Pin = Pin::P0_08;
-const BUTTON4_PIN: Pin = Pin::P0_09;
+// const BUTTON1_PIN: Pin = Pin::P0_23;
+// const BUTTON2_PIN: Pin = Pin::P0_24;
+// const BUTTON3_PIN: Pin = Pin::P0_08;
+// const BUTTON4_PIN: Pin = Pin::P0_09;
 // const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
 // const UART_RTS: Option<Pin> = Some(Pin::P0_05);
