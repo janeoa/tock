@@ -72,6 +72,7 @@
 
 use core::ptr::addr_of;
 
+use capsules_core::capacitive_touch::CapacitiveTouchSensor;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 // use capsules_extra::net::ieee802154::MacAddress;
 // use capsules_extra::net::ipv6::ip_utils::IPAddr;
@@ -99,6 +100,8 @@ use nrf5340::rtc::Rtc;
 use nrf53_components::{UartChannel, UartPins};
 const VENDOR_ID: u16 = 0x1915; // Nordic Semiconductor
 const PRODUCT_ID: u16 = 0x521f; // nRF5340 Dongle (PCA10059)
+const THRESHOLD: u32 = 20;
+
 static STRINGS: &'static [&'static str] = &[
     // Manufacturer
     "Nordic Semiconductor ASA",
@@ -545,7 +548,7 @@ pub unsafe fn start() -> (
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             nrf5340::gpio::GPIOPin,
-            // 0 => &nrf5340_peripherals.gpio_port[Pin::P1_01],
+            0 => &nrf5340_peripherals.gpio_port[CAP_TOUCH1_PIN],
             // 1 => &nrf5340_peripherals.gpio_port[Pin::P1_02],
             // 2 => &nrf5340_peripherals.gpio_port[Pin::P1_03],
             // 3 => &nrf5340_peripherals.gpio_port[Pin::P1_04],
@@ -747,7 +750,7 @@ pub unsafe fn start() -> (
         capsules_core::capacitive_touch::CapacitiveTouchSensor::new(
             &nrf5340_peripherals.gpio_port[CAP_TOUCH1_PIN],
             cap_touch_alarm1,
-            cap_touch_alarm1.ticks_from_ms(10),  // Threshold: 10ms
+            THRESHOLD.into(),                    // Threshold: 20ms
             cap_touch_alarm1.ticks_from_ms(100), // Scan interval: 100ms
         )
     );
