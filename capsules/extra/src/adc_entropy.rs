@@ -30,7 +30,8 @@ impl<'a, A: Adc<'a>> Entropy32<'a> for AdcEntropy<'a, A> {
     }
 
     fn cancel(&self) -> Result<(), ErrorCode> {
-        self.adc.stop_sampling()
+        // self.adc.stop_sampling()
+        Ok(())
     }
 
     fn set_client(&'a self, client: &'a dyn Client32) {

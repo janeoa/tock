@@ -1,12 +1,10 @@
 use core::cell::Cell;
-use kernel::debug;
 use kernel::hil::gpio::{self, Configure, Input, InterruptEdge, InterruptPin, Output, Pin};
 use kernel::hil::time::{Alarm, AlarmClient, Ticks};
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 pub struct CapacitiveTouchSensor<'a, A: Alarm<'a>> {
-    // ... existing fields ...
     /// Last reported touch state (for edge detection)
     last_is_touched: Cell<bool>,
     // The GPIO pin used for the capacitive sensor
@@ -52,7 +50,6 @@ pub struct CapacitiveTouchSensor<'a, A: Alarm<'a>> {
 #[derive(Copy, Clone, PartialEq)]
 enum SensorState {
     Idle,
-    Charging,
     Discharging,
 }
 
@@ -90,43 +87,28 @@ impl<'a, A: Alarm<'a>> CapacitiveTouchSensor<'a, A> {
     }
 
     pub fn start_measurement(&self) {
-        // Configure pin as output and set high to charge the capacitor
         self.pin.make_output();
         self.pin.set();
-        self.state.set(SensorState::Charging);
 
-        // Set alarm for end of charging phase
-        let now = self.alarm.now();
-        // Increase charging time to ensure capacitor is fully charged
-        let charge_time = A::Ticks::from(50); // Longer charging time
-        self.alarm.set_alarm(now, charge_time);
+        self.pin.make_input();
+
+        self.pin.make_output();
+        self.pin.set();
     }
 
     fn start_discharge(&self) {
-        // Match user space: input mode, pull-none (default)
         self.pin.make_input();
         self.pin.set_floating_state(gpio::FloatingState::PullNone);
-
         self.state.set(SensorState::Discharging);
 
-        // Polling-based discharge measurement (user space style)
         let mut count: u32 = 0;
-        // Busy-wait loop to poll the pin, incrementing count until LOW
         while self.pin.read() {
-            // Insert a small busy-wait to stretch timing, as in user space
-            for _ in 0..10 {}
             count += 1;
         }
-        // Determine new touch state
+
         let was_touched = self.last_is_touched.get();
         let is_touched = count > self.threshold.get().into_u32();
         self.is_touched.set(is_touched);
-        debug!(
-            "[CapTouch-KERNEL-POLL] PIN:{} COUNT:{} THRESH:{}",
-            self.pin_id.get(),
-            count,
-            self.threshold.get().into_u32()
-        );
 
         // Only notify clients if the state has changed
         if is_touched != was_touched {
@@ -152,17 +134,12 @@ impl<'a, A: Alarm<'a>> CapacitiveTouchSensor<'a, A> {
         }
     }
 
-    /// Minimal stub to allow alarm() to call check_discharge without error.
-    fn check_discharge(&self) {
-        // For backward compatibility, just call start_discharge() (which does the polling and updates state)
-        self.start_discharge();
-    }
-
     pub fn enable(&self) {
         self.enabled.set(true);
         // Start scanning if currently idle
         if self.state.get() == SensorState::Idle {
             self.start_measurement();
+            self.start_discharge();
         }
     }
 
@@ -177,19 +154,12 @@ impl<'a, A: Alarm<'a>> CapacitiveTouchSensor<'a, A> {
 impl<'a, A: Alarm<'a>> AlarmClient for CapacitiveTouchSensor<'a, A> {
     fn alarm(&self) {
         match self.state.get() {
-            SensorState::Charging => {
-                // Charging phase complete, start discharge
-                self.start_discharge();
-            }
-            SensorState::Discharging => {
-                // Check the pin state and process discharge
-                self.check_discharge();
-            }
+            SensorState::Discharging => {}
             SensorState::Idle => {
                 // Only start a new scan if explicitly enabled
                 if self.enabled.get() {
-                    // Time for next scan
                     self.start_measurement();
+                    self.start_discharge();
                 }
             }
         }
@@ -204,16 +174,11 @@ impl<'a, A: Alarm<'a>> Input for CapacitiveTouchSensor<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> Output for CapacitiveTouchSensor<'a, A> {
-    fn set(&self) {
-        // Not applicable for capacitive sensor
-    }
+    fn set(&self) {}
 
-    fn clear(&self) {
-        // Not applicable for capacitive sensor
-    }
+    fn clear(&self) {}
 
     fn toggle(&self) -> bool {
-        // Not applicable for capacitive sensor
         self.read()
     }
 }
@@ -224,32 +189,27 @@ impl<'a, A: Alarm<'a>> Configure for CapacitiveTouchSensor<'a, A> {
     }
 
     fn make_output(&self) -> gpio::Configuration {
-        // For capacitive sensor, this doesn't change the actual configuration
         gpio::Configuration::Input
     }
 
     fn disable_output(&self) -> gpio::Configuration {
-        // For capacitive sensor, this doesn't change the actual configuration
         gpio::Configuration::Input
     }
 
     fn make_input(&self) -> gpio::Configuration {
-        // For capacitive sensor, this doesn't change the actual configuration
         gpio::Configuration::Input
     }
 
     fn disable_input(&self) -> gpio::Configuration {
-        // For capacitive sensor, this doesn't change the actual configuration
         gpio::Configuration::Input
     }
 
     fn deactivate_to_low_power(&self) {
-        // Put the pin in a low power state
-        // For capacitive sensor, we can disable scanning
         self.disable();
     }
 
-    fn set_floating_state(&self, _state: gpio::FloatingState) {
+    fn set_floating_state(&self, state: gpio::FloatingState) {
+        self.pin.set_floating_state(state);
         // Not applicable for capacitive sensor
     }
 
@@ -265,27 +225,20 @@ impl<'a, A: Alarm<'a>> gpio::Interrupt<'a> for CapacitiveTouchSensor<'a, A> {
     }
 
     fn enable_interrupts(&self, _mode: InterruptEdge) {
-        // Reset the measurement completion flag
         self.measurement_completed.set(false);
-        // Clear any pending disable requests
         self.disable_pending.set(false);
-        // Enable scanning when interrupts are enabled
         self.enable();
     }
 
     fn disable_interrupts(&self) {
         if !self.measurement_completed.get() && self.state.get() != SensorState::Idle {
-            // If a measurement is in progress and we haven't completed at least one measurement,
-            // mark as pending but don't disable yet
             self.disable_pending.set(true);
         } else {
-            // Either we've completed at least one measurement or we're idle
             self.disable();
         }
     }
 
     fn is_pending(&self) -> bool {
-        // Not applicable for capacitive sensor
         false
     }
 }
@@ -297,28 +250,17 @@ impl<'a, A: Alarm<'a>> gpio::InterruptWithValue<'a> for CapacitiveTouchSensor<'a
     }
 
     fn enable_interrupts(&self, _mode: InterruptEdge) -> Result<(), ErrorCode> {
-        // Reset the measurement completion flag
         self.measurement_completed.set(false);
-        // Clear any pending disable requests
         self.disable_pending.set(false);
-        // Enable scanning when interrupts are enabled
         self.enable();
         Ok(())
     }
 
     fn disable_interrupts(&self) {
-        if !self.measurement_completed.get() && self.state.get() != SensorState::Idle {
-            // If a measurement is in progress and we haven't completed at least one measurement,
-            // mark as pending but don't disable yet
-            self.disable_pending.set(true);
-        } else {
-            // Either we've completed at least one measurement or we're idle
-            self.disable();
-        }
+        self.disable();
     }
 
     fn is_pending(&self) -> bool {
-        // Not applicable for capacitive sensor
         false
     }
 
@@ -333,7 +275,5 @@ impl<'a, A: Alarm<'a>> gpio::InterruptWithValue<'a> for CapacitiveTouchSensor<'a
 
 // Implementation of ClientWithValue trait
 impl<'a, A: Alarm<'a>> gpio::ClientWithValue for CapacitiveTouchSensor<'a, A> {
-    fn fired(&self, value: u32) {
-        // This is called when the capacitive sensor is used as a client for another interrupt
-    }
+    fn fired(&self, value: u32) {}
 }
