@@ -72,6 +72,7 @@
 
 use core::ptr::addr_of;
 
+use capsules_core::button;
 use capsules_core::capacitive_touch::CapacitiveTouchSensor;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 // use capsules_extra::net::ieee802154::MacAddress;
@@ -83,6 +84,8 @@ use kernel::component::Component;
 use kernel::hil::adc::Adc;
 use kernel::hil::gpio;
 
+use components::button_component_helper;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::gpio::InterruptWithValue;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Alarm;
@@ -98,6 +101,7 @@ use nrf5340::gpio::Pin;
 use nrf5340::interrupt_service::Nrf5340DefaultPeripherals;
 use nrf5340::rtc::Rtc;
 use nrf53_components::{UartChannel, UartPins};
+
 const VENDOR_ID: u16 = 0x1915; // Nordic Semiconductor
 const PRODUCT_ID: u16 = 0x521f; // nRF5340 Dongle (PCA10059)
 const THRESHOLD: u32 = 20;
@@ -123,6 +127,7 @@ const LED4_PIN: Pin = Pin::P0_31;
 
 // Capacitive touch pins
 const CAP_TOUCH1_PIN: Pin = Pin::P0_05; // Choose an appropriate pin
+const CAP_TOUCH2_PIN: Pin = Pin::P0_06; // Choose an appropriate pin
 
 // The nRF52840DK buttons (see back of board)
 const BUTTON1_PIN: Pin = Pin::P0_23;
@@ -741,6 +746,12 @@ pub unsafe fn start() -> (
     );
     cap_touch_alarm1.setup();
 
+    let cap_touch_alarm2 = static_init!(
+        VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    cap_touch_alarm2.setup();
+
     // Create capacitive touch sensor 1
     let cap_touch1 = static_init!(
         capsules_core::capacitive_touch::CapacitiveTouchSensor<
@@ -754,42 +765,46 @@ pub unsafe fn start() -> (
             cap_touch_alarm1.ticks_from_ms(10), // Scan interval: 100ms
         )
     );
+    cap_touch1.set_pin_id(0);
     cap_touch_alarm1.set_alarm_client(cap_touch1);
 
-    // Create a button component that uses the capacitive touch sensor directly
-    // First, create an array of capacitive touch sensors with their configuration
-    // Wrap the capacitive touch sensor in InterruptValueWrapper to match the expected type
-    let cap_touch1_wrapper = static_init!(
-        gpio::InterruptValueWrapper<
+    let cap_touch2 = static_init!(
+        capsules_core::capacitive_touch::CapacitiveTouchSensor<
             'static,
-            capsules_core::capacitive_touch::CapacitiveTouchSensor<
-                'static,
-                VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
-            >,
+            VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
         >,
-        gpio::InterruptValueWrapper::new(cap_touch1)
+        capsules_core::capacitive_touch::CapacitiveTouchSensor::new(
+            &nrf5340_peripherals.gpio_port[CAP_TOUCH2_PIN],
+            cap_touch_alarm2,
+            THRESHOLD.into(),                   // Threshold: 20
+            cap_touch_alarm2.ticks_from_ms(10), // Scan interval: 100ms
+        )
     );
+    cap_touch_alarm2.set_alarm_client(cap_touch2);
+    cap_touch2.set_pin_id(1);
 
-    let cap_touch_pins = static_init!(
-        [(
-            &'static gpio::InterruptValueWrapper<
-                'static,
-                capsules_core::capacitive_touch::CapacitiveTouchSensor<
-                    'static,
-                    VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
-                >,
-            >,
-            gpio::ActivationMode,
-            gpio::FloatingState
-        ); 1],
-        [(
-            cap_touch1_wrapper,
+    cap_touch1.register();
+    cap_touch2.register();
+
+    let cap_touch_wrapper = button_component_helper!(
+        capsules_core::capacitive_touch::CapacitiveTouchSensor<
+            'static,
+            VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
+        >,
+        (
+            cap_touch1,
             gpio::ActivationMode::ActiveHigh,
             gpio::FloatingState::PullNone
-        )]
+        ),
+        (
+            cap_touch2,
+            gpio::ActivationMode::ActiveHigh,
+            gpio::FloatingState::PullNone
+        )
     );
+
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    // Create the button capsule using the capacitive touch sensors
+
     let cap_touch_button = static_init!(
         capsules_core::button::Button<
             'static,
@@ -799,13 +814,16 @@ pub unsafe fn start() -> (
             >,
         >,
         capsules_core::button::Button::new(
-            cap_touch_pins,
+            cap_touch_wrapper,
             board_kernel.create_grant(capsules_core::button::DRIVER_NUM, &grant_cap)
         )
     );
 
     // Set the button capsule as the client for the capacitive touch sensor
     cap_touch1.set_client(cap_touch_button);
+    cap_touch2.set_client(cap_touch_button);
+
+    // Register capacitive touch sensors with the deferred call system
 
     //--------------------------------------------------------------------------
     // RANDOM NUMBER GENERATOR

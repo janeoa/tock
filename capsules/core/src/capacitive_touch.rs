@@ -1,5 +1,6 @@
 use core::cell::Cell;
-use kernel::hil::gpio::{self, Configure, Input, InterruptEdge, InterruptPin, Output, Pin};
+use kernel::deferred_call::DeferredCallClient;
+use kernel::hil::gpio::{self, Configure, Input, InterruptEdge, Output, Pin};
 use kernel::hil::time::{Alarm, AlarmClient, Ticks};
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
@@ -45,6 +46,9 @@ pub struct CapacitiveTouchSensor<'a, A: Alarm<'a>> {
 
     // Flag to track if at least one measurement has completed
     measurement_completed: Cell<bool>,
+
+    // Deferred callback to prevent re-entering grant regions
+    deferred_callback: kernel::deferred_call::DeferredCall,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -75,6 +79,7 @@ impl<'a, A: Alarm<'a>> CapacitiveTouchSensor<'a, A> {
             disable_pending: Cell::new(false),
             measurement_completed: Cell::new(false),
             last_is_touched: Cell::new(false),
+            deferred_callback: kernel::deferred_call::DeferredCall::new(),
         }
     }
 
@@ -110,14 +115,12 @@ impl<'a, A: Alarm<'a>> CapacitiveTouchSensor<'a, A> {
         let is_touched = count > self.threshold.get().into_u32();
         self.is_touched.set(is_touched);
 
-        // Only notify clients if the state has changed
+        // Only notify clients if the state has changed, but use deferred callback
         if is_touched != was_touched {
             self.last_is_touched.set(is_touched);
-            if let Some(client) = self.client.get() {
-                client.fired();
-            }
-            if let Some(client) = self.client_with_value.get() {
-                client.fired(self.pin_id.get());
+            // Schedule the deferred callback instead of directly calling clients
+            if !self.deferred_callback.is_pending() {
+                self.deferred_callback.set();
             }
         }
         self.measurement_completed.set(true);
@@ -275,5 +278,23 @@ impl<'a, A: Alarm<'a>> gpio::InterruptWithValue<'a> for CapacitiveTouchSensor<'a
 
 // Implementation of ClientWithValue trait
 impl<'a, A: Alarm<'a>> gpio::ClientWithValue for CapacitiveTouchSensor<'a, A> {
-    fn fired(&self, value: u32) {}
+    fn fired(&self, _value: u32) {}
+}
+
+// Implementation for DeferredCallClient trait
+impl<'a, A: Alarm<'a>> DeferredCallClient for CapacitiveTouchSensor<'a, A> {
+    fn handle_deferred_call(&self) {
+        // Notify clients here, outside of any critical sections
+        if let Some(client) = self.client.get() {
+            client.fired();
+        }
+
+        if let Some(client) = self.client_with_value.get() {
+            client.fired(self.pin_id.get());
+        }
+    }
+
+    fn register(&'static self) {
+        self.deferred_callback.register(self);
+    }
 }
