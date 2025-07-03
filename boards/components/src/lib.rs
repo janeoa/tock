@@ -21,6 +21,7 @@ pub mod bmp280;
 pub mod bus;
 pub mod button;
 pub mod can;
+pub mod capacitive_touch;
 pub mod ccs811;
 pub mod cdc;
 pub mod chirp_i2c_moisture;

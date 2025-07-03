@@ -13,6 +13,7 @@ pub mod stream;
 pub mod adc;
 pub mod alarm;
 pub mod button;
+pub mod capacitive_touch;
 pub mod console;
 pub mod console_ordered;
 pub mod driver;
