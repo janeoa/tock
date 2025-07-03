@@ -120,10 +120,15 @@ static STRINGS: &'static [&'static str] = &[
 ];
 
 // The nRF52840DK LEDs (see back of board)
-const LED1_PIN: Pin = Pin::P0_28;
-const LED2_PIN: Pin = Pin::P0_29;
-const LED3_PIN: Pin = Pin::P0_30;
-const LED4_PIN: Pin = Pin::P0_31;
+// const LED1_PIN: Pin = Pin::P0_28;
+// const LED2_PIN: Pin = Pin::P0_29;
+// const LED3_PIN: Pin = Pin::P0_30;
+// const LED4_PIN: Pin = Pin::P0_31;
+
+// The nrf53 demo board LEDs
+const LEDG_PIN: Pin = Pin::P0_24;
+const LEDR_PIN: Pin = Pin::P0_26;
+const LEDB_PIN: Pin = Pin::P1_08;
 
 // Capacitive touch pins
 const CAP_TOUCH1_PIN: Pin = Pin::P0_05; // Choose an appropriate pin
@@ -155,9 +160,10 @@ const SPI_CLK: Pin = Pin::P0_19;
 const SPI_MOSI: Pin = Pin::P0_20;
 const SPI_MISO: Pin = Pin::P0_21;
 
-const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
-const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
-const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
+// External flash pins removed - using internal flash for TicKV
+// const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
+// const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
+// const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
 
 // /// I2C pins
 // const I2C_SDA_PIN: Pin = Pin::P0_26;
@@ -203,26 +209,22 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf5340::rtc::Rtc<'static>>;
 type RngDriver =
-    components::rng::RngComponentType<adc_entropy::AdcEntropy<'static, nrf5340::adc::Adc<'static>>>;
+    components::rng::RngComponentType<adc_entropy::AdcEntropy<'static, nrf5340::adc::Adc<'stati;
 
-// TicKV
-// type Mx25r6435f = components::mx25r6435f::Mx25r6435fComponentType<
-//     nrf5340::spi::SPIM<'static>,
-//     nrf5340::gpio::GPIOPin<'static>,
-//     nrf5340::rtc::Rtc<'static>,
-// >;
-// const TICKV_PAGE_SIZE: usize =
-//     core::mem::size_of::<<Mx25r6435f as kernel::hil::flash::Flash>::Page>();
-// type Siphasher24 = components::siphash::Siphasher24ComponentType;
-// type TicKVDedicatedFlash =
-//     components::tickv::TicKVDedicatedFlashComponentType<Mx25r6435f, Siphasher24, TICKV_PAGE_SIZE>;
-// type TicKVKVStore = components::kv::TicKVKVStoreComponentType<
-//     TicKVDedicatedFlash,
-//     capsules_extra::tickv::TicKVKeyType,
-// >;
-// type KVStorePermissions = components::kv::KVStorePermissionsComponentType<TicKVKVStore>;
-// type VirtualKVPermissions = components::kv::VirtualKVPermissionsComponentType<KVStorePermissions>;
-// type KVDriver = components::kv::KVDriverComponentType<VirtualKVPermissions>;
+// TicKV - Using internal flash instead of external flash
+type InternalFlash = nrf5340::nvmc::Nvmc;
+const TICKV_PAGE_SIZE: usize =
+    core::mem::size_of::<<InternalFlash as kernel::hil::flash::Flash>::Page>();
+type Siphasher24 = components::siphash::Siphasher24ComponentType;
+type TicKVDedicatedFlash =
+    components::tickv::TicKVDedicatedFlashComponentType<InternalFlash, Siphasher24, TICKV_PAGE_SIZE>;
+type TicKVKVStore = components::kv::TicKVKVStoreComponentType<
+    TicKVDedicatedFlash,
+    capsules_extra::tickv::TicKVKeyType,
+>;
+type KVStorePermissions = components::kv::KVStorePermissionsComponentType<TicKVKVStore>;
+type VirtualKVPermissions = components::kv::VirtualKVPermissionsComponentType<KVStorePermissions>;
+type KVDriver = components::kv::KVDriverComponentType<VirtualKVPermissions>;
 
 // Temperature
 // type TemperatureDriver =
@@ -262,7 +264,8 @@ pub struct Platform {
     led: &'static capsules_core::led::LedDriver<
         'static,
         kernel::hil::led::LedLow<'static, nrf5340::gpio::GPIOPin<'static>>,
-        4,
+        // 4,
+        3,
     >,
     rng: &'static RngDriver,
     // adc: &'static capsules_core::adc::AdcDedicated<'static, nrf5340::adc::Adc<'static>>,
@@ -491,9 +494,12 @@ pub unsafe fn start() -> (
 
     // Configure kernel debug GPIOs as early as possible.
     kernel::debug::assign_gpios(
-        Some(&nrf5340_peripherals.gpio_port[LED1_PIN]),
-        Some(&nrf5340_peripherals.gpio_port[LED2_PIN]),
-        Some(&nrf5340_peripherals.gpio_port[LED3_PIN]),
+        // Some(&nrf5340_peripherals.gpio_port[LED1_PIN]),
+        // Some(&nrf5340_peripherals.gpio_port[LED2_PIN]),
+        // Some(&nrf5340_peripherals.gpio_port[LED3_PIN]),
+        Some(&nrf5340_peripherals.gpio_port[LEDR_PIN]),
+        Some(&nrf5340_peripherals.gpio_port[LEDG_PIN]),
+        Some(&nrf5340_peripherals.gpio_port[LEDB_PIN]),
     );
 
     // Choose the channel for serial output. This board can be configured to use
@@ -614,10 +620,13 @@ pub unsafe fn start() -> (
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, nrf5340::gpio::GPIOPin>,
-        LedLow::new(&nrf5340_peripherals.gpio_port[LED1_PIN]),
-        LedLow::new(&nrf5340_peripherals.gpio_port[LED2_PIN]),
-        LedLow::new(&nrf5340_peripherals.gpio_port[LED3_PIN]),
-        LedLow::new(&nrf5340_peripherals.gpio_port[LED4_PIN]),
+        // LedLow::new(&nrf5340_peripherals.gpio_port[LED1_PIN]),
+        // LedLow::new(&nrf5340_peripherals.gpio_port[LED2_PIN]),
+        // LedLow::new(&nrf5340_peripherals.gpio_port[LED3_PIN]),
+        // LedLow::new(&nrf5340_peripherals.gpio_port[LED4_PIN]),
+        LedLow::new(&nrf5340_peripherals.gpio_port[LEDR_PIN]),
+        LedLow::new(&nrf5340_peripherals.gpio_port[LEDG_PIN]),
+        LedLow::new(&nrf5340_peripherals.gpio_port[LEDB_PIN]),
     ));
 
     //--------------------------------------------------------------------------
@@ -880,49 +889,34 @@ pub unsafe fn start() -> (
     // );
 
     //--------------------------------------------------------------------------
-    // ONBOARD EXTERNAL FLASH
-    //--------------------------------------------------------------------------
-
-    // let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
-    //     Some(&gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN]),
-    //     Some(&gpio_port[SPI_MX25R6435F_HOLD_PIN]),
-    //     &gpio_port[SPI_MX25R6435F_CHIP_SELECT],
-    //     mux_alarm,
-    //     mux_spi,
-    // )
-    // .finalize(components::mx25r6435f_component_static!(
-    //     nrf5340::spi::SPIM,
-    //     nrf5340::gpio::GPIOPin,
-    //     nrf5340::rtc::Rtc
-    // ));
-
-    //--------------------------------------------------------------------------
-    // TICKV
+    // INTERNAL FLASH FOR TICKV
     //--------------------------------------------------------------------------
 
     // Static buffer to use when reading/writing flash for TicKV.
-    // let page_buffer = static_init!(
-    //     <Mx25r6435f as kernel::hil::flash::Flash>::Page,
-    //     <Mx25r6435f as kernel::hil::flash::Flash>::Page::default()
-    // );
+    let page_buffer = static_init!(
+        <InternalFlash as kernel::hil::flash::Flash>::Page,
+        <InternalFlash as kernel::hil::flash::Flash>::Page::default()
+    );
 
     // SipHash for creating TicKV hashed keys.
     // let sip_hash = components::siphash::Siphasher24Component::new()
     //     .finalize(components::siphasher24_component_static!());
 
-    // TicKV with Tock wrapper/interface.
-    // let tickv = components::tickv::TicKVDedicatedFlashComponent::new(
-    //     sip_hash,
-    //     mx25r6435f,
-    //     0, // start at the beginning of the flash chip
-    //     (capsules_extra::mx25r6435f::SECTOR_SIZE as usize) * 32, // arbitrary size of 32 pages
-    //     page_buffer,
-    // )
-    // .finalize(components::tickv_dedicated_flash_component_static!(
-    //     Mx25r6435f,
-    //     Siphasher24,
-    //     TICKV_PAGE_SIZE,
-    // ));
+    // TicKV with Tock wrapper/interface using internal flash.
+    // We'll use the last 128KB (32 pages * 4KB per page) of internal flash for TicKV storage.
+    // nRF5340 has 1MB of flash, so we start at page 224 (896KB offset) to avoid kernel/app space.
+    let tickv = components::tickv::TicKVDedicatedFlashComponent::new(
+        sip_hash,
+        &base_peripherals.nvmc,
+        224, // start at page 224 (896KB offset) to avoid kernel/app space
+        32 * 4096, // 32 pages * 4KB per page = 128KB for TicKV storage
+        page_buffer,
+    )
+    .finalize(components::tickv_dedicated_flash_component_static!(
+        InternalFlash,
+        Siphasher24,
+        TICKV_PAGE_SIZE,
+    ));
 
     // KVSystem interface to KV (built on TicKV).
     // let tickv_kv_store = components::kv::TicKVKVStoreComponent::new(tickv).finalize(
