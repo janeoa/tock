@@ -559,10 +559,10 @@ pub unsafe fn start() -> (
     // Do nRF configuration and setup. This is shared code with other nRF-based
     // platforms.
     nrf53_components::startup::NrfStartupComponent::new(
-        false,
+        // false,
         // THIS IS NOT RESET PIN
         // BUTTON1_PIN,
-        nrf5340::uicr::Regulator0Output::DEFAULT,
+        // nrf5340::uicr::Regulator0Output::DEFAULT,
         &base_peripherals.nvmc,
     )
     .finalize(());

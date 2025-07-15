@@ -27,39 +27,40 @@ use kernel::ErrorCode;
 
 const NVMC_BASE: StaticRef<NvmcRegisters> =
     // unsafe { StaticRef::new(0x4001E400 as *const NvmcRegisters) };
-    unsafe { StaticRef::new(0x50039000 as *const NvmcRegisters) };
+    unsafe { StaticRef::new(0x50039400 as *const NvmcRegisters) };
 
 #[repr(C)]
 struct NvmcRegisters {
     /// Ready flag
     /// Address 0x400 - 0x404
     pub ready: ReadOnly<u32, Ready::Register>,
-    _reserved0: [u32; 4],
+    _reserved0: u32,
     /// Ready flag
     /// Address 0x408 - 0x40C
     pub ready_next: ReadOnly<u32, Ready::Register>,
     /// Reserved
-    _reserved1: [u32; 59],
+    _reserved1: [u32; 62],
     /// Configuration register
     /// Address: 0x504 - 0x508
     pub config: ReadWrite<u32, Configuration::Register>,
-    /// Register for erasing a page in Code area
-    /// Address: 0x508 - 0x50C
-    pub erasepage: ReadWrite<u32, ErasePage::Register>,
+    // /// Register for erasing a page in Code area
+    // /// Address: 0x508 - 0x50C
+    // pub erasepage: ReadWrite<u32, ErasePage::Register>,
+    _reserved2: u32,
     /// Register for erasing all non-volatile user memory
     /// Address: 0x50C - 0x510
     pub eraseall: ReadWrite<u32, EraseAll::Register>,
-    _reserved2: u32,
+    _reserved3: u32,
     /// Register for erasing User Information Configuration Registers
     /// Address: 0x514 - 0x518
     pub eraseuicr: ReadWrite<u32, EraseUicr::Register>,
     /// Reserved
-    _reserved3: [u32; 10],
+    _reserved4: [u32; 10],
     /// Configuration register
     /// Address: 0x540 - 0x544
     pub icachecnf: ReadWrite<u32, CacheConfiguration::Register>,
     /// Reserved
-    _reserved4: u32,
+    _reserved5: u32,
     /// Configuration register
     /// Address: 0x548 - 0x54c
     pub ihit: ReadWrite<u32, CacheHit::Register>,
@@ -289,19 +290,21 @@ impl Nvmc {
         }
     }
 
-    fn erase_page_helper(&self, page_number: usize) {
+    //TODO: in nrf53 there is no ErasePage register
+    fn erase_page_helper(&self, _page_number: usize) {
         // Put the NVMC in erase mode.
-        self.registers.config.write(Configuration::WEN::Een);
+        panic!("TODO: erase page doesn't implemented on nrf53");
+        // self.registers.config.write(Configuration::WEN::Een);
 
-        // Tell the NVMC to erase the correct page by passing in the correct
-        // address.
-        self.registers
-            .erasepage
-            .write(ErasePage::ERASEPAGE.val((page_number * PAGE_SIZE) as u32));
+        // // Tell the NVMC to erase the correct page by passing in the correct
+        // // address.
+        // self.registers
+        //     .erasepage
+        //     .write(ErasePage::ERASEPAGE.val((page_number * PAGE_SIZE) as u32));
 
-        // Make sure that the NVMC is done. The CPU should be blocked while the
-        // erase is happening, but it doesn't hurt to check too.
-        while !self.registers.ready.is_set(Ready::READY) {}
+        // // Make sure that the NVMC is done. The CPU should be blocked while the
+        // // erase is happening, but it doesn't hurt to check too.
+        // while !self.registers.ready.is_set(Ready::READY) {}
     }
 
     fn read_range(
