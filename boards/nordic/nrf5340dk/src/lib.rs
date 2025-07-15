@@ -95,10 +95,13 @@ use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::StorageLocation;
+use kernel::StorageType;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf5340::gpio::Pin;
 use nrf5340::interrupt_service::Nrf5340DefaultPeripherals;
+use nrf5340::nvmc;
 use nrf5340::rtc::Rtc;
 use nrf53_components::{UartChannel, UartPins};
 
@@ -202,22 +205,40 @@ static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::Pr
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+/// Flash buffer for the custom nvmc driver
+static mut APP_FLASH_BUFFER: [u8; 0x1000] = [0; 0x1000];
 
+static mut STORAGE_LOCATIONS: [StorageLocation; 2] = [
+    // We implement NUM_PAGES = 20 as 16 + 4 to satisfy the MPU.
+    StorageLocation {
+        address: 0xC0000,
+        size: 0x10000, // 16 pages
+        storage_type: StorageType::Store,
+    },
+    StorageLocation {
+        address: 0xD0000,
+        size: 0x4000, // 4 pages
+        storage_type: StorageType::Store,
+    },
+];
 //------------------------------------------------------------------------------
 // SYSCALL DRIVER TYPE DEFINITIONS
 //------------------------------------------------------------------------------
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf5340::rtc::Rtc<'static>>;
 type RngDriver =
-    components::rng::RngComponentType<adc_entropy::AdcEntropy<'static, nrf5340::adc::Adc<'stati;
+    components::rng::RngComponentType<adc_entropy::AdcEntropy<'static, nrf5340::adc::Adc<'static>>>;
 
 // TicKV - Using internal flash instead of external flash
 type InternalFlash = nrf5340::nvmc::Nvmc;
 const TICKV_PAGE_SIZE: usize =
     core::mem::size_of::<<InternalFlash as kernel::hil::flash::Flash>::Page>();
 type Siphasher24 = components::siphash::Siphasher24ComponentType;
-type TicKVDedicatedFlash =
-    components::tickv::TicKVDedicatedFlashComponentType<InternalFlash, Siphasher24, TICKV_PAGE_SIZE>;
+type TicKVDedicatedFlash = components::tickv::TicKVDedicatedFlashComponentType<
+    InternalFlash,
+    Siphasher24,
+    TICKV_PAGE_SIZE,
+>;
 type TicKVKVStore = components::kv::TicKVKVStoreComponentType<
     TicKVDedicatedFlash,
     capsules_extra::tickv::TicKVKeyType,
@@ -289,6 +310,7 @@ pub struct Platform {
     //     >,
     // >,
     // kv_driver: &'static KVDriver,
+    nvmc: &'static nrf5340::nvmc::SyscallDriver,
     // usb: &'static components::usb_ctap::UsbCtapComponent<'static>,
     // usb: &'static capsules::usb::usb_ctap::CtapUsbSyscallDriver<
     usb: &'static capsules_extra::usb::usb_ctap::CtapUsbSyscallDriver<
@@ -329,6 +351,7 @@ impl SyscallDriverLookup for Platform {
             // capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             // capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             // capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
+            nrf5340::nvmc::DRIVER_NUM => f(Some(self.nvmc)),
             _ => f(None),
         }
     }
@@ -523,8 +546,11 @@ pub unsafe fn start() -> (
     };
 
     // Setup space to store the core kernel data structure.
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
+    let board_kernel = static_init!(
+        kernel::Kernel,
+        kernel::Kernel::new_with_storage(&*addr_of!(PROCESSES), &*addr_of!(STORAGE_LOCATIONS))
+    );
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
     let chip = static_init!(Chip, nrf5340::chip::NRF53::new(nrf5340_peripherals));
@@ -533,12 +559,13 @@ pub unsafe fn start() -> (
     // Do nRF configuration and setup. This is shared code with other nRF-based
     // platforms.
     nrf53_components::startup::NrfStartupComponent::new(
-        // false,
-        // BUTTON_RST_PIN,
-        // nrf5340::uicr::Regulator0Output::DEFAULT,
+        false,
+        // THIS IS NOT RESET PIN
+        // BUTTON1_PIN,
+        nrf5340::uicr::Regulator0Output::DEFAULT,
         &base_peripherals.nvmc,
-    );
-    // .finalize(());
+    )
+    .finalize(());
 
     //--------------------------------------------------------------------------
     // CAPABILITIES
@@ -748,7 +775,29 @@ pub unsafe fn start() -> (
     // CAPACITIVE TOUCH SENSORS
     //--------------------------------------------------------------------------
 
-    // Create virtual alarms for the capacitive touch sensors
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
+    // Create a grant with minimal boilerplate
+    let nvmc_grant = board_kernel.create_grant(nvmc::DRIVER_NUM, &grant_cap);
+    let nvmc_deferred_call = static_init!(
+        kernel::deferred_call::DeferredCall,
+        kernel::deferred_call::DeferredCall::new()
+    );
+
+    // Create the NVMC syscall driver using the existing deferred call
+    let nvmc = static_init!(
+        nrf5340::nvmc::SyscallDriver,
+        nrf5340::nvmc::SyscallDriver::new(
+            &base_peripherals.nvmc,
+            nvmc_grant,
+            nvmc_deferred_call,
+            &mut APP_FLASH_BUFFER
+        )
+    );
+
+    // Register the driver
+    kernel::deferred_call::DeferredCallClient::register(nvmc);
+
     let cap_touch_alarm1 = static_init!(
         VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
         VirtualMuxAlarm::new(mux_alarm)
@@ -811,8 +860,6 @@ pub unsafe fn start() -> (
             gpio::FloatingState::PullNone
         )
     );
-
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     let cap_touch_button = static_init!(
         capsules_core::button::Button<
@@ -893,30 +940,30 @@ pub unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     // Static buffer to use when reading/writing flash for TicKV.
-    let page_buffer = static_init!(
-        <InternalFlash as kernel::hil::flash::Flash>::Page,
-        <InternalFlash as kernel::hil::flash::Flash>::Page::default()
-    );
+    // let page_buffer = static_init!(
+    //     <InternalFlash as kernel::hil::flash::Flash>::Page,
+    //     <InternalFlash as kernel::hil::flash::Flash>::Page::default()
+    // );
 
-    // SipHash for creating TicKV hashed keys.
+    // // SipHash for creating TicKV hashed keys.
     // let sip_hash = components::siphash::Siphasher24Component::new()
     //     .finalize(components::siphasher24_component_static!());
 
-    // TicKV with Tock wrapper/interface using internal flash.
-    // We'll use the last 128KB (32 pages * 4KB per page) of internal flash for TicKV storage.
-    // nRF5340 has 1MB of flash, so we start at page 224 (896KB offset) to avoid kernel/app space.
-    let tickv = components::tickv::TicKVDedicatedFlashComponent::new(
-        sip_hash,
-        &base_peripherals.nvmc,
-        224, // start at page 224 (896KB offset) to avoid kernel/app space
-        32 * 4096, // 32 pages * 4KB per page = 128KB for TicKV storage
-        page_buffer,
-    )
-    .finalize(components::tickv_dedicated_flash_component_static!(
-        InternalFlash,
-        Siphasher24,
-        TICKV_PAGE_SIZE,
-    ));
+    // // TicKV with Tock wrapper/interface using internal flash.
+    // // We'll use the last 128KB (32 pages * 4KB per page) of internal flash for TicKV storage.
+    // // nRF5340 has 1MB of flash, so we start at page 224 (896KB offset) to avoid kernel/app space.
+    // let tickv = components::tickv::TicKVDedicatedFlashComponent::new(
+    //     sip_hash,
+    //     &base_peripherals.nvmc,
+    //     224,       // start at page 224 (896KB offset) to avoid kernel/app space
+    //     32 * 4096, // 32 pages * 4KB per page = 128KB for TicKV storage
+    //     page_buffer,
+    // )
+    // .finalize(components::tickv_dedicated_flash_component_static!(
+    //     InternalFlash,
+    //     Siphasher24,
+    //     TICKV_PAGE_SIZE,
+    // ));
 
     // KVSystem interface to KV (built on TicKV).
     // let tickv_kv_store = components::kv::TicKVKVStoreComponent::new(tickv).finalize(
@@ -1084,6 +1131,7 @@ pub unsafe fn start() -> (
         // i2c_master_slave,
         // spi_controller,
         // kv_driver,
+        nvmc: nvmc,
         usb,
         scheduler,
         systick: cortexm33::systick::SysTick::new_with_calibration(64000000),
