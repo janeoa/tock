@@ -291,20 +291,21 @@ impl Nvmc {
     }
 
     //TODO: in nrf53 there is no ErasePage register
-    fn erase_page_helper(&self, _page_number: usize) {
-        // Put the NVMC in erase mode.
-        panic!("TODO: erase page doesn't implemented on nrf53");
-        // self.registers.config.write(Configuration::WEN::Een);
+    fn erase_page_helper(&self, page_number: usize) {
+        self.registers.config.write(Configuration::WEN::Wen);
+        let data = NrfPage([1; PAGE_SIZE]);
 
-        // // Tell the NVMC to erase the correct page by passing in the correct
-        // // address.
-        // self.registers
-        //     .erasepage
-        //     .write(ErasePage::ERASEPAGE.val((page_number * PAGE_SIZE) as u32));
+        for i in (0..data.len()).step_by(4) {
+            let word: u32 = 0xFFFF_FFFF;
+            let address = ((page_number * PAGE_SIZE) + i) as u32;
+            let location = unsafe { &*(address as *const VolatileCell<u32>) };
+            location.set(word);
+            while !self.registers.ready.is_set(Ready::READY) {}
+        }
 
-        // // Make sure that the NVMC is done. The CPU should be blocked while the
-        // // erase is happening, but it doesn't hurt to check too.
-        // while !self.registers.ready.is_set(Ready::READY) {}
+        // Make sure that the NVMC is done. The CPU should be blocked while the
+        // write is happening, but it doesn't hurt to check too.
+        while !self.registers.ready.is_set(Ready::READY) {}
     }
 
     fn read_range(
