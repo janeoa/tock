@@ -1,6 +1,5 @@
 //! A USB HID client of the USB hardware interface
 
-use crate::app::App;
 use super::descriptors;
 use super::descriptors::Buffer64;
 use super::descriptors::DescriptorType;
@@ -14,6 +13,7 @@ use super::descriptors::ReportDescriptor;
 use super::descriptors::TransferDirection;
 use super::usb_ctap::CtapUsbClient;
 use super::usbc_client_ctrl::ClientCtrl;
+use crate::app::App;
 use core::cell::Cell;
 use kernel::debug;
 use kernel::grant::GrantKernelData;
@@ -318,8 +318,6 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtapHID<'a, 'b, C> {
     }
 
     pub fn receive_packet(&'a self, app: &mut App, kernel_grant: &GrantKernelData) {
-        debug!("recieved packet");
-
         if self.pending_out.get() {
             // The previous packet has not yet been received, reject the new one.
         } else {
