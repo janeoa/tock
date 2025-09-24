@@ -5,14 +5,21 @@
 //! Universal Serial Bus Device with EasyDMA (USBD)
 
 use core::cell::Cell;
-use cortexm33::support::atomic;
+// TODO: do we need atomic usb for nrf53?
+// use cortexm33::support::atomic;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::cells::{OptionalCell, VolatileCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, Field, InMemoryRegister, LocalRegisterCopy, ReadOnly,
-    ReadWrite, WriteOnly,
+    // register_bitfields, register_structs, Field, InMemoryRegister, LocalRegisterCopy, ReadOnly,
+    register_bitfields,
+    Field,
+    InMemoryRegister,
+    LocalRegisterCopy,
+    ReadOnly,
+    ReadWrite,
+    WriteOnly,
 };
 use kernel::utilities::StaticRef;
 
@@ -57,40 +64,41 @@ macro_rules! internal_err {
     };
 }
 
-const CHIPINFO_BASE: StaticRef<ChipInfoRegisters> =
-    unsafe { StaticRef::new(0x10000130 as *const ChipInfoRegisters) };
+// const CHIPINFO_BASE: StaticRef<ChipInfoRegisters> =
+//     unsafe { StaticRef::new(0x10000130 as *const ChipInfoRegisters) };
 
 const USBD_BASE: StaticRef<UsbdRegisters<'static>> =
-    unsafe { StaticRef::new(0x40027000 as *const UsbdRegisters<'static>) };
+    // unsafe { StaticRef::new(0x40027000 as *const UsbdRegisters<'static>) };
+    unsafe { StaticRef::new(0x50036000 as *const UsbdRegisters<'static>) };
 
-const USBERRATA_BASE: StaticRef<UsbErrataRegisters> =
-    unsafe { StaticRef::new(0x4006E000 as *const UsbErrataRegisters) };
+// const USBERRATA_BASE: StaticRef<UsbErrataRegisters> =
+//     unsafe { StaticRef::new(0x4006E000 as *const UsbErrataRegisters) };
 
 const NUM_ENDPOINTS: usize = 8;
 
-register_structs! {
-    ChipInfoRegisters {
-        /// Undocumented register indicating the model of the chip
-        (0x000 => chip_model: ReadOnly<u32, ChipModel::Register>),
-        /// Undocumented register indicating the revision of the chip
-        /// - Address: 0x004 - 0x008
-        (0x004 => chip_revision: ReadOnly<u32, ChipRevision::Register>),
-        (0x008 => @END),
-    },
+// register_structs! {
+//     // ChipInfoRegisters {
+//     //     /// Undocumented register indicating the model of the chip
+//     //     (0x000 => chip_model: ReadOnly<u32, ChipModel::Register>),
+//     //     /// Undocumented register indicating the revision of the chip
+//     //     /// - Address: 0x004 - 0x008
+//     //     (0x004 => chip_revision: ReadOnly<u32, ChipRevision::Register>),
+//     //     (0x008 => @END),
+//     // },
 
-    UsbErrataRegisters {
-        (0x000 => _reserved0),
-        /// Undocumented register - Errata 171
-        (0xC00 => reg_c00: ReadWrite<u32>),
-        (0xC04 => _reserved1),
-        /// Undocumented register - Errata 171
-        (0xC14 => reg_c14: WriteOnly<u32>),
-        (0xC18 => _reserved2),
-        /// Undocumented register - Errata 187
-        (0xD14 => reg_d14: WriteOnly<u32>),
-        (0xD18 => @END),
-    }
-}
+//     // UsbErrataRegisters {
+//     //     (0x000 => _reserved0),
+//     //     /// Undocumented register - Errata 171
+//     //     (0xC00 => reg_c00: ReadWrite<u32>),
+//     //     (0xC04 => _reserved1),
+//     //     /// Undocumented register - Errata 171
+//     //     (0xC14 => reg_c14: WriteOnly<u32>),
+//     //     (0xC18 => _reserved2),
+//     //     /// Undocumented register - Errata 187
+//     //     (0xD14 => reg_d14: WriteOnly<u32>),
+//     //     (0xD18 => @END),
+//     // }
+// }
 
 #[repr(C)]
 struct UsbdRegisters<'a> {
@@ -293,17 +301,6 @@ struct UsbdRegisters<'a> {
     epout: [detail::EndpointRegisters<'a>; NUM_ENDPOINTS],
     /// - Address: 0x7A0 - 0x7B4
     isoout: detail::EndpointRegisters<'a>,
-    _reserved14: [u32; 19],
-    /// Errata 166 related register (ISO double buffering not functional)
-    /// - Address: 0x800 - 0x804
-    errata166_1: WriteOnly<u32>,
-    /// Errata 166 related register (ISO double buffering not functional)
-    /// - Address: 0x804 - 0x808
-    errata166_2: WriteOnly<u32>,
-    _reserved15: [u32; 261],
-    /// Errata 199 related register (USBD cannot receive tasks during DMA)
-    /// - Address: 0xC1C - 0xC20
-    errata199: WriteOnly<u32>,
 }
 
 mod detail {
@@ -754,79 +751,79 @@ impl<'a> Usbd<'a> {
     // https://github.com/NordicSemiconductor/nrfx/blob/master/mdk/nrf52_erratas.h
     // for how the different errata apply.
 
-    fn has_errata_166(&self) -> bool {
-        true
-    }
+    // fn has_errata_166(&self) -> bool {
+    //     true
+    // }
 
-    fn has_errata_171(&self) -> bool {
-        true
-    }
+    // fn has_errata_171(&self) -> bool {
+    //     true
+    // }
 
-    fn has_errata_187(&self) -> bool {
-        CHIPINFO_BASE
-            .chip_model
-            .matches_all(ChipModel::MODEL::NRF52840)
-            && match CHIPINFO_BASE.chip_revision.read_as_enum(ChipRevision::REV) {
-                Some(ChipRevision::REV::Value::REVB)
-                | Some(ChipRevision::REV::Value::REVC)
-                | Some(ChipRevision::REV::Value::REVD)
-                | Some(ChipRevision::REV::Value::REVE)
-                | Some(ChipRevision::REV::Value::REVF) => true,
-                Some(ChipRevision::REV::Value::REVA) | None => false,
-            }
-    }
+    // fn has_errata_187(&self) -> bool {
+    //     CHIPINFO_BASE
+    //         .chip_model
+    //         .matches_all(ChipModel::MODEL::NRF52840)
+    //         && match CHIPINFO_BASE.chip_revision.read_as_enum(ChipRevision::REV) {
+    //             Some(ChipRevision::REV::Value::REVB)
+    //             | Some(ChipRevision::REV::Value::REVC)
+    //             | Some(ChipRevision::REV::Value::REVD)
+    //             | Some(ChipRevision::REV::Value::REVE)
+    //             | Some(ChipRevision::REV::Value::REVF) => true,
+    //             Some(ChipRevision::REV::Value::REVA) | None => false,
+    //         }
+    // }
 
-    fn has_errata_199(&self) -> bool {
-        true
-    }
+    // fn has_errata_199(&self) -> bool {
+    //     true
+    // }
 
-    /// ISO double buffering not functional
-    fn apply_errata_166(&self) {
-        if self.has_errata_166() {
-            self.registers.errata166_1.set(0x7e3);
-            self.registers.errata166_2.set(0x40);
-        }
-    }
+    // /// ISO double buffering not functional
+    // fn apply_errata_166(&self) {
+    //     if self.has_errata_166() {
+    //         self.registers.errata166_1.set(0x7e3);
+    //         self.registers.errata166_2.set(0x40);
+    //     }
+    // }
 
-    /// USBD might not reach its active state.
-    fn apply_errata_171(&self, val: u32) {
-        if self.has_errata_171() {
-            unsafe {
-                atomic(|| {
-                    if USBERRATA_BASE.reg_c00.get() == 0 {
-                        USBERRATA_BASE.reg_c00.set(0x9375);
-                        USBERRATA_BASE.reg_c14.set(val);
-                        USBERRATA_BASE.reg_c00.set(0x9375);
-                    } else {
-                        USBERRATA_BASE.reg_c14.set(val);
-                    }
-                });
-            }
-        }
-    }
+    // /// USBD might not reach its active state.
+    // fn apply_errata_171(&self, val: u32) {
+    //     if self.has_errata_171() {
+    //         unsafe {
+    //             atomic(|| {
+    //                 if USBERRATA_BASE.reg_c00.get() == 0 {
+    //                     USBERRATA_BASE.reg_c00.set(0x9375);
+    //                     USBERRATA_BASE.reg_c14.set(val);
+    //                     USBERRATA_BASE.reg_c00.set(0x9375);
+    //                 } else {
+    //                     USBERRATA_BASE.reg_c14.set(val);
+    //                 }
+    //             });
+    //         }
+    //     }
+    // }
 
-    /// USB cannot be enabled
-    fn apply_errata_187(&self, val: u32) {
-        if self.has_errata_187() {
-            unsafe {
-                atomic(|| {
-                    if USBERRATA_BASE.reg_c00.get() == 0 {
-                        USBERRATA_BASE.reg_c00.set(0x9375);
-                        USBERRATA_BASE.reg_d14.set(val);
-                        USBERRATA_BASE.reg_c00.set(0x9375);
-                    } else {
-                        USBERRATA_BASE.reg_d14.set(val);
-                    }
-                });
-            }
-        }
-    }
+    // /// USB cannot be enabled
+    // fn apply_errata_187(&self, val: u32) {
+    //     if self.has_errata_187() {
+    //         unsafe {
+    //             atomic(|| {
+    //                 if USBERRATA_BASE.reg_c00.get() == 0 {
+    //                     USBERRATA_BASE.reg_c00.set(0x9375);
+    //                     USBERRATA_BASE.reg_d14.set(val);
+    //                     USBERRATA_BASE.reg_c00.set(0x9375);
+    //                 } else {
+    //                     USBERRATA_BASE.reg_d14.set(val);
+    //                 }
+    //             });
+    //         }
+    //     }
+    // }
 
-    fn apply_errata_199(&self, val: u32) {
-        if self.has_errata_199() {
-            self.registers.errata199.set(val);
-        }
-    }
+    // fn apply_errata_199(&self, val: u32) {
+    //     if self.has_errata_199() {
+    //         self.registers.errata199.set(val);
+    //     }
+    // }
 
     pub fn get_state(&self) -> UsbState {
         self.state.unwrap_or_panic() // Unwrap fail = get_state: state value is in use
@@ -839,16 +836,16 @@ impl<'a> Usbd<'a> {
             return;
         }
         self.registers.eventcause.modify(EventCause::READY::CLEAR);
-        self.apply_errata_187(3);
-        self.apply_errata_171(0xc0);
+        // self.apply_errata_187(3);
+        // self.apply_errata_171(0xc0);
         self.registers.enable.write(Usb::ENABLE::ON);
         while !self.registers.eventcause.is_set(EventCause::READY) {}
         self.registers.eventcause.modify(EventCause::READY::CLEAR);
-        self.apply_errata_171(0);
-        self.apply_errata_166();
+        // self.apply_errata_171(0);
+        // self.apply_errata_166();
         self.clear_pending_dma();
         self.state.set(UsbState::Initialized);
-        self.apply_errata_187(0);
+        // self.apply_errata_187(0);
     }
 
     // TODO: unused function
@@ -861,8 +858,8 @@ impl<'a> Usbd<'a> {
         self.enable_lowpower();
         if self.registers.eventcause.is_set(EventCause::RESUME) {
             self.disable_lowpower();
-        } else {
-            self.apply_errata_171(0);
+            // } else {
+            //     self.apply_errata_171(0);
         }
         internal_warn!("suspend() not fully implemented");
     }
@@ -914,37 +911,37 @@ impl<'a> Usbd<'a> {
         // If your chip isn't one of these, you will be alerted by these panics. You can disable
         // them but will likely need to add the relevant errata to this implementation (errata 104,
         // 154, 200).
-        let chip_model = CHIPINFO_BASE.chip_model.get();
-        if chip_model != u32::from(ChipModel::MODEL::NRF52840) {
-            panic!(
-                "USB was only tested on NRF52840. Your chip model is {}.",
-                chip_model
-            );
-        }
-        let chip_revision = CHIPINFO_BASE.chip_revision.extract();
-        match chip_revision.read_as_enum(ChipRevision::REV) {
-            Some(ChipRevision::REV::Value::REVA) | Some(ChipRevision::REV::Value::REVB) => {
-                panic!(
-                    "Errata for USB on NRF52840 chips revisions A and B are not implemented. Your chip revision is {}.",
-                    chip_revision.get()
-                );
-            }
-            Some(ChipRevision::REV::Value::REVC)
-            | Some(ChipRevision::REV::Value::REVD)
-            | Some(ChipRevision::REV::Value::REVE)
-            | Some(ChipRevision::REV::Value::REVF) => {
-                debug_info!(
-                    "Your chip is NRF52840 revision {}. The USB stack was tested on your chip :)",
-                    chip_revision.get()
-                );
-            }
-            None => {
-                internal_warn!(
-                    "Your chip is NRF52840 revision {} (unknown revision). Although this USB implementation should be compatible, your chip hasn't been tested.",
-                    chip_revision.get()
-                );
-            }
-        }
+        // let chip_model = CHIPINFO_BASE.chip_model.get();
+        // if chip_model != u32::from(ChipModel::MODEL::NRF52840) {
+        //     panic!(
+        //         "USB was only tested on NRF52840. Your chip model is {}.",
+        //         chip_model
+        //     );
+        // }
+        // let chip_revision = CHIPINFO_BASE.chip_revision.extract();
+        // match chip_revision.read_as_enum(ChipRevision::REV) {
+        //     Some(ChipRevision::REV::Value::REVA) | Some(ChipRevision::REV::Value::REVB) => {
+        //         panic!(
+        //             "Errata for USB on NRF52840 chips revisions A and B are not implemented. Your chip revision is {}.",
+        //             chip_revision.get()
+        //         );
+        //     }
+        //     Some(ChipRevision::REV::Value::REVC)
+        //     | Some(ChipRevision::REV::Value::REVD)
+        //     | Some(ChipRevision::REV::Value::REVE)
+        //     | Some(ChipRevision::REV::Value::REVF) => {
+        //         debug_info!(
+        //             "Your chip is NRF52840 revision {}. The USB stack was tested on your chip :)",
+        //             chip_revision.get()
+        //         );
+        //     }
+        //     None => {
+        //         internal_warn!(
+        //             "Your chip is NRF52840 revision {} (unknown revision). Although this USB implementation should be compatible, your chip hasn't been tested.",
+        //             chip_revision.get()
+        //         );
+        //     }
+        // }
         let power = self.power.unwrap_or_panic(); // Unwrap fail = failed to initialize power reference for USB
         if !power.is_vbus_present() {
             debug_info!("[!] VBUS power is not detected.");
@@ -992,7 +989,7 @@ impl<'a> Usbd<'a> {
 
     fn clear_pending_dma(&self) {
         debug_packets!("clear_pending_dma()");
-        self.apply_errata_199(0);
+        // self.apply_errata_199(0);
         self.dma_pending.set(false);
     }
 
@@ -1001,7 +998,7 @@ impl<'a> Usbd<'a> {
         if self.dma_pending.get() {
             internal_err!("Pending DMA already in flight");
         }
-        self.apply_errata_199(0x82);
+        // self.apply_errata_199(0x82);
         self.dma_pending.set(true);
     }
 

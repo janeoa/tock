@@ -17,7 +17,7 @@ nrf52833 = { path = "../../chips/nrf52833" }
 components = { path = "../components" }
 nrf52_components = { path = "../nordic/nrf52_components" }
 
-capsules-core = { path = "../../capsules/core" }
+capsules_core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 

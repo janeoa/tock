@@ -57,14 +57,13 @@
 
 use core::cell::Cell;
 
+/// Syscall driver number.
+use crate::driver;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
-
-/// Syscall driver number.
-use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Button as usize;
 
 /// Keeps track which buttons each app has a registered interrupt for.
@@ -197,11 +196,6 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
                         }
                     });
 
-                    // if not, disable the interrupt
-                    if interrupt_count.get() == 0 {
-                        self.pins[data].0.disable_interrupts();
-                    }
-
                     res
                 }
             }
@@ -241,12 +235,5 @@ impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
                     .ok();
             }
         });
-
-        // It's possible we got an interrupt for a process that has since died
-        // (and didn't unregister the interrupt). Lazily disable interrupts for
-        // this button if so.
-        if interrupt_count.get() == 0 {
-            self.pins[pin_num as usize].0.disable_interrupts();
-        }
     }
 }

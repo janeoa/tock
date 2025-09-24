@@ -38,7 +38,7 @@ pub struct Nrf53DefaultPeripherals<'a> {
     pub timer0: crate::timer::TimerAlarm<'a>,
     pub timer1: crate::timer::TimerAlarm<'a>,
     pub timer2: crate::timer::Timer,
-    pub uarte0: crate::uart::Uarte<'a>,
+    pub uarte1: crate::uart::Uarte<'a>,
     pub spim0: crate::spi::SPIM<'a>,
     pub twi1: crate::i2c::TWI<'a>,
     pub spim2: crate::spi::SPIM<'a>,
@@ -61,7 +61,8 @@ impl<'a> Nrf53DefaultPeripherals<'a> {
             timer0: crate::timer::TimerAlarm::new(0),
             timer1: crate::timer::TimerAlarm::new(1),
             timer2: crate::timer::Timer::new(2),
-            uarte0: crate::uart::Uarte::new(crate::uart::UARTE0_BASE),
+            // uarte0: crate::uart::Uarte::new(crate::uart::UARTE0_BASE),
+            uarte1: crate::uart::Uarte::new(crate::uart::UARTE1_BASE),
             spim0: crate::spi::SPIM::new(0),
             twi1: crate::i2c::TWI::new_twi1(),
             spim2: crate::spi::SPIM::new(2),
@@ -81,7 +82,7 @@ impl<'a> kernel::platform::chip::InterruptService for Nrf53DefaultPeripherals<'a
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             crate::peripheral_interrupts::POWER_CLOCK => self.pwr_clk.handle_interrupt(),
-            crate::peripheral_interrupts::UART0 => self.uarte0.handle_interrupt(),
+            crate::peripheral_interrupts::UART1 => self.uarte1.handle_interrupt(),
 
             crate::peripheral_interrupts::RTC0 => self.rtc.handle_interrupt(),
             crate::peripheral_interrupts::RTC1 => self.rtc.handle_interrupt(),
@@ -94,7 +95,7 @@ impl<'a> kernel::platform::chip::InterruptService for Nrf53DefaultPeripherals<'a
             crate::peripheral_interrupts::TIMER2 => self.timer2.handle_interrupt(),
 
             // crate::peripheral_interrupts::UARTE0 => self.uarte0.handle_interrupt(),
-            // crate::peripheral_interrupts::SPI0_TWI0 => self.spim0.handle_interrupt(),
+            crate::peripheral_interrupts::SPI0 => self.spim0.handle_interrupt(),
             // crate::peripheral_interrupts::SPI1_TWI1 => self.twi1.handle_interrupt(),
             // crate::peripheral_interrupts::SPIM2_SPIS2_SPI2 => self.spim2.handle_interrupt(),
 

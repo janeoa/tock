@@ -426,7 +426,8 @@ pub fn create_descriptor_buffers(
     mut configuration_descriptor: ConfigurationDescriptor,
     interface_descriptor: &mut [InterfaceDescriptor],
     endpoint_descriptors: &[&[EndpointDescriptor]],
-    hid_descriptor: Option<&HIDDescriptor>,
+    // hid_descriptor: Option<&HIDDescriptor>,
+    hid_descriptor: Option<&[&HIDDescriptor<'static>]>,
     cdc_descriptor: Option<&[CdcInterfaceDescriptor]>,
 ) -> (DeviceBuffer, DescriptorBuffer) {
     // Create device descriptor buffer and fill.
@@ -510,7 +511,7 @@ pub fn create_descriptor_buffers(
                 .iter()
                 .map(|descs| descs.iter().map(|d| d.size()).sum::<usize>())
                 .sum::<usize>()
-            + hid_descriptor.map_or(0, |d| d.size())
+            + hid_descriptor.map_or(0, |ds| ds.iter().map(|d| d.size()).sum::<usize>())
             + cdc_descriptor.map_or(0, |ds| ds.iter().map(|d| d.size()).sum::<usize>());
 
     // Set the number of endpoints for each interface descriptor.
@@ -527,12 +528,10 @@ pub fn create_descriptor_buffers(
         // Add the interface descriptor.
         len += d.write_to(&other_buf.buf[len..]);
 
-        // If there is a HID descriptor, we include
-        // it with the first interface descriptor.
-        if i == 0 {
-            // HID descriptor, if any.
-            if let Some(dh) = hid_descriptor {
-                len += dh.write_to(&other_buf.buf[len..]);
+        // HID descriptor, if present, for this interface.
+        if let Some(dh) = hid_descriptor {
+            if let Some(d) = dh.get(i) {
+                len += d.write_to(&other_buf.buf[len..]);
             }
         }
 
@@ -573,8 +572,10 @@ impl Default for ConfigurationDescriptor {
             num_interfaces: 1,
             configuration_value: 1,
             string_index: 0,
-            attributes: ConfigurationAttributes::new(true, false),
-            max_power: 0, // in 2mA units
+            // attributes: ConfigurationAttributes::new(true, false),
+            attributes: ConfigurationAttributes::new(false, false),
+            // max_power: 0, // in 2mA units
+            max_power: 50, // in 2mA units
             related_descriptor_length: 0,
         }
     }

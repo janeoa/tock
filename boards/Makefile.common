@@ -52,7 +52,7 @@ check_defined = $(strip $(foreach 1,$1,$(if $(value $1),,$(error Undefined varia
 # the local package name first so we can use that to get the package name. Ex:
 #
 # wm1110dev v0.1.0 (/Users/bradjc/git/tock/boards/wm1110dev)
-# ├── capsules-core v0.1.0 (/Users/bradjc/git/tock/capsules/core)
+# ├── capsules_core v0.1.0 (/Users/bradjc/git/tock/capsules/core)
 # │   ├── enum_primitive v0.1.0 (/Users/bradjc/git/tock/libraries/enum_primitive)
 PLATFORM := $(firstword $(shell $(CARGO) tree))
 # Set `TARGET` if not already defined. Note: this only works on nightly.

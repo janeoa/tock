@@ -72,33 +72,76 @@
 
 use core::ptr::addr_of;
 
+use capsules_core::button;
+use capsules_core::capacitive_touch::CapacitiveTouchSensor;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 // use capsules_extra::net::ieee802154::MacAddress;
 // use capsules_extra::net::ipv6::ip_utils::IPAddr;
+// use crate::usb_ctap;
+use capsules_extra::adc_entropy;
+use capsules_extra::usb_ctap;
 use kernel::component::Component;
+use kernel::hil::adc::Adc;
+use kernel::hil::gpio;
+
+use components::button_component_helper;
+use kernel::deferred_call::DeferredCallClient;
+use kernel::hil::gpio::InterruptWithValue;
 use kernel::hil::led::LedLow;
+use kernel::hil::time::Alarm;
+use kernel::hil::time::ConvertTicks;
 use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::StorageLocation;
+use kernel::StorageType;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf5340::gpio::Pin;
 use nrf5340::interrupt_service::Nrf5340DefaultPeripherals;
+use nrf5340::nvmc;
+use nrf5340::rtc::Rtc;
 use nrf53_components::{UartChannel, UartPins};
 
+const VENDOR_ID: u16 = 0x1915; // Nordic Semiconductor
+const PRODUCT_ID: u16 = 0x521f; // nRF5340 Dongle (PCA10059)
+const THRESHOLD: u32 = 20;
+
+static STRINGS: &'static [&'static str] = &[
+    // Manufacturer
+    "Nordic Semiconductor ASA",
+    // Product
+    "OpenSK",
+    // Serial number
+    "v1.0",
+    // Interface description + main HID string
+    "FIDO2",
+    // vendor HID string
+    "Vendor HID",
+];
+
 // The nRF52840DK LEDs (see back of board)
-const LED1_PIN: Pin = Pin::P0_28;
-const LED2_PIN: Pin = Pin::P0_29;
-const LED3_PIN: Pin = Pin::P0_30;
-const LED4_PIN: Pin = Pin::P0_31;
+// const LED1_PIN: Pin = Pin::P0_28;
+// const LED2_PIN: Pin = Pin::P0_29;
+// const LED3_PIN: Pin = Pin::P0_30;
+// const LED4_PIN: Pin = Pin::P0_31;
+
+// The nrf53 demo board LEDs
+const LEDG_PIN: Pin = Pin::P0_24;
+const LEDR_PIN: Pin = Pin::P0_26;
+const LEDB_PIN: Pin = Pin::P1_08;
+
+// Capacitive touch pins
+const CAP_TOUCH1_PIN: Pin = Pin::P0_05; // Choose an appropriate pin
+const CAP_TOUCH2_PIN: Pin = Pin::P0_06; // Choose an appropriate pin
 
 // The nRF52840DK buttons (see back of board)
 const BUTTON1_PIN: Pin = Pin::P0_23;
-const BUTTON2_PIN: Pin = Pin::P0_24;
-const BUTTON3_PIN: Pin = Pin::P0_08;
-const BUTTON4_PIN: Pin = Pin::P0_09;
+// const BUTTON2_PIN: Pin = Pin::P0_24;
+// const BUTTON3_PIN: Pin = Pin::P0_08;
+// const BUTTON4_PIN: Pin = Pin::P0_09;
 // const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
 // const UART_RTS: Option<Pin> = Some(Pin::P0_05);
@@ -110,11 +153,17 @@ const UART_RXD: Pin = Pin::P1_00;
 const UART_RTS: Option<Pin> = Some(Pin::P0_11);
 const UART_CTS: Option<Pin> = Some(Pin::P0_10);
 
-// const SPI_MOSI: Pin = Pin::P0_20;
-// const SPI_MISO: Pin = Pin::P0_21;
-// const SPI_CLK: Pin = Pin::P0_19;
-// const SPI_CS: Pin = Pin::P0_22;
+/*
+SPI_CS: P0.24
+SPI_CLK: P0.19
+SPI_MOSI: P0.20
+SPI_MISO: P0.21 */
+const SPI_CS: Pin = Pin::P0_24;
+const SPI_CLK: Pin = Pin::P0_19;
+const SPI_MOSI: Pin = Pin::P0_20;
+const SPI_MISO: Pin = Pin::P0_21;
 
+// External flash pins removed - using internal flash for TicKV
 // const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
 // const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
 // const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
@@ -156,36 +205,51 @@ static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::Pr
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+/// Flash buffer for the custom nvmc driver
+static mut APP_FLASH_BUFFER: [u8; 0x1000] = [0; 0x1000];
 
+static mut STORAGE_LOCATIONS: [StorageLocation; 2] = [
+    // We implement NUM_PAGES = 20 as 16 + 4 to satisfy the MPU.
+    StorageLocation {
+        address: 0xC0000,
+        size: 0x10000, // 16 pages
+        storage_type: StorageType::Store,
+    },
+    StorageLocation {
+        address: 0xD0000,
+        size: 0x4000, // 4 pages
+        storage_type: StorageType::Store,
+    },
+];
 //------------------------------------------------------------------------------
 // SYSCALL DRIVER TYPE DEFINITIONS
 //------------------------------------------------------------------------------
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf5340::rtc::Rtc<'static>>;
-type RngDriver = components::rng::RngComponentType<nrf5340::trng::Trng<'static>>;
+type RngDriver =
+    components::rng::RngComponentType<adc_entropy::AdcEntropy<'static, nrf5340::adc::Adc<'static>>>;
 
-// TicKV
-// type Mx25r6435f = components::mx25r6435f::Mx25r6435fComponentType<
-//     nrf5340::spi::SPIM<'static>,
-//     nrf5340::gpio::GPIOPin<'static>,
-//     nrf5340::rtc::Rtc<'static>,
-// >;
-// const TICKV_PAGE_SIZE: usize =
-//     core::mem::size_of::<<Mx25r6435f as kernel::hil::flash::Flash>::Page>();
-// type Siphasher24 = components::siphash::Siphasher24ComponentType;
-// type TicKVDedicatedFlash =
-//     components::tickv::TicKVDedicatedFlashComponentType<Mx25r6435f, Siphasher24, TICKV_PAGE_SIZE>;
-// type TicKVKVStore = components::kv::TicKVKVStoreComponentType<
-//     TicKVDedicatedFlash,
-//     capsules_extra::tickv::TicKVKeyType,
-// >;
-// type KVStorePermissions = components::kv::KVStorePermissionsComponentType<TicKVKVStore>;
-// type VirtualKVPermissions = components::kv::VirtualKVPermissionsComponentType<KVStorePermissions>;
-// type KVDriver = components::kv::KVDriverComponentType<VirtualKVPermissions>;
+// TicKV - Using internal flash instead of external flash
+type InternalFlash = nrf5340::nvmc::Nvmc;
+const TICKV_PAGE_SIZE: usize =
+    core::mem::size_of::<<InternalFlash as kernel::hil::flash::Flash>::Page>();
+type Siphasher24 = components::siphash::Siphasher24ComponentType;
+type TicKVDedicatedFlash = components::tickv::TicKVDedicatedFlashComponentType<
+    InternalFlash,
+    Siphasher24,
+    TICKV_PAGE_SIZE,
+>;
+type TicKVKVStore = components::kv::TicKVKVStoreComponentType<
+    TicKVDedicatedFlash,
+    capsules_extra::tickv::TicKVKeyType,
+>;
+type KVStorePermissions = components::kv::KVStorePermissionsComponentType<TicKVKVStore>;
+type VirtualKVPermissions = components::kv::VirtualKVPermissionsComponentType<KVStorePermissions>;
+type KVDriver = components::kv::KVDriverComponentType<VirtualKVPermissions>;
 
 // Temperature
-type TemperatureDriver =
-    components::temperature::TemperatureComponentType<nrf5340::temperature::Temp<'static>>;
+// type TemperatureDriver =
+//     components::temperature::TemperatureComponentType<nrf5340::temperature::Temp<'static>>;
 
 // IEEE 802.15.4
 // type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<
@@ -217,13 +281,14 @@ pub struct Platform {
         components::process_console::Capability,
     >,
     console: &'static capsules_core::console::Console<'static>,
-    gpio: &'static capsules_core::gpio::GPIO<'static, nrf5340::gpio::GPIOPin<'static>>,
+    // gpio: &'static capsules_core::gpio::GPIO<'static, nrf5340::gpio::GPIOPin<'static>>,
     led: &'static capsules_core::led::LedDriver<
         'static,
         kernel::hil::led::LedLow<'static, nrf5340::gpio::GPIOPin<'static>>,
-        4,
+        // 4,
+        3,
     >,
-    // rng: &'static RngDriver,
+    rng: &'static RngDriver,
     // adc: &'static capsules_core::adc::AdcDedicated<'static, nrf5340::adc::Adc<'static>>,
     // temp: &'static TemperatureDriver,
     /// The IPC driver.
@@ -245,8 +310,23 @@ pub struct Platform {
     //     >,
     // >,
     // kv_driver: &'static KVDriver,
+    nvmc: &'static nrf5340::nvmc::SyscallDriver,
+    // usb: &'static components::usb_ctap::UsbCtapComponent<'static>,
+    // usb: &'static capsules::usb::usb_ctap::CtapUsbSyscallDriver<
+    usb: &'static capsules_extra::usb::usb_ctap::CtapUsbSyscallDriver<
+        'static,
+        'static,
+        nrf5340::usbd::Usbd<'static>,
+    >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm33::systick::SysTick,
+    capacitive_touch: &'static capsules_core::button::Button<
+        'static,
+        capsules_core::capacitive_touch::CapacitiveTouchSensor<
+            'static,
+            VirtualMuxAlarm<'static, nrf5340::rtc::Rtc<'static>>,
+        >,
+    >,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -256,11 +336,13 @@ impl SyscallDriverLookup for Platform {
     {
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
-            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            // capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
-            // capsules_core::button::DRIVER_NUM => f(Some(self.button)),
-            // capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+            // capsules_extra::usb_ctap::DRIVER_NUM => f(Some(self.usb)),
+            capsules_extra::usb::usb_ctap::DRIVER_NUM => f(Some(self.usb)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.capacitive_touch)),
+            capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             // capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             // capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             // capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
@@ -269,6 +351,7 @@ impl SyscallDriverLookup for Platform {
             // capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             // capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             // capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
+            nrf5340::nvmc::DRIVER_NUM => f(Some(self.nvmc)),
             _ => f(None),
         }
     }
@@ -434,9 +517,12 @@ pub unsafe fn start() -> (
 
     // Configure kernel debug GPIOs as early as possible.
     kernel::debug::assign_gpios(
-        Some(&nrf5340_peripherals.gpio_port[LED1_PIN]),
-        Some(&nrf5340_peripherals.gpio_port[LED2_PIN]),
-        Some(&nrf5340_peripherals.gpio_port[LED3_PIN]),
+        // Some(&nrf5340_peripherals.gpio_port[LED1_PIN]),
+        // Some(&nrf5340_peripherals.gpio_port[LED2_PIN]),
+        // Some(&nrf5340_peripherals.gpio_port[LED3_PIN]),
+        Some(&nrf5340_peripherals.gpio_port[LEDR_PIN]),
+        Some(&nrf5340_peripherals.gpio_port[LEDG_PIN]),
+        Some(&nrf5340_peripherals.gpio_port[LEDB_PIN]),
     );
 
     // Choose the channel for serial output. This board can be configured to use
@@ -460,8 +546,11 @@ pub unsafe fn start() -> (
     };
 
     // Setup space to store the core kernel data structure.
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
+    let board_kernel = static_init!(
+        kernel::Kernel,
+        kernel::Kernel::new_with_storage(&*addr_of!(PROCESSES), &*addr_of!(STORAGE_LOCATIONS))
+    );
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
     let chip = static_init!(Chip, nrf5340::chip::NRF53::new(nrf5340_peripherals));
@@ -470,12 +559,13 @@ pub unsafe fn start() -> (
     // Do nRF configuration and setup. This is shared code with other nRF-based
     // platforms.
     nrf53_components::startup::NrfStartupComponent::new(
-        false,
-        // BUTTON_RST_PIN,
-        nrf5340::uicr::Regulator0Output::DEFAULT,
+        // false,
+        // THIS IS NOT RESET PIN
+        // BUTTON1_PIN,
+        // nrf5340::uicr::Regulator0Output::DEFAULT,
         &base_peripherals.nvmc,
-    );
-    // .finalize(());
+    )
+    .finalize(());
 
     //--------------------------------------------------------------------------
     // CAPABILITIES
@@ -491,66 +581,65 @@ pub unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     // Expose the D0-D13 Arduino GPIO pins to userspace.
-    let gpio = components::gpio::GpioComponent::new(
-        board_kernel,
-        capsules_core::gpio::DRIVER_NUM,
-        components::gpio_component_helper!(
-            nrf5340::gpio::GPIOPin,
-            // 0 => &nrf5340_peripherals.gpio_port[Pin::P1_01],
-            // 1 => &nrf5340_peripherals.gpio_port[Pin::P1_02],
-            // 2 => &nrf5340_peripherals.gpio_port[Pin::P1_03],
-            // 3 => &nrf5340_peripherals.gpio_port[Pin::P1_04],
-            // 4 => &nrf5340_peripherals.gpio_port[Pin::P1_05],
-            // 5 => &nrf5340_peripherals.gpio_port[Pin::P1_06],
-            // 6 => &nrf5340_peripherals.gpio_port[Pin::P1_07],
-            // 7 => &nrf5340_peripherals.gpio_port[Pin::P1_08],
-            // Avoid exposing the I2C pins to userspace, as these are used in
-            // some tutorials (e.g., `nrf5340dk-thread-tutorial`).
-            //
-            // In the future we might want to make this configurable.
-            //
-            // 8 => &nrf5340_peripherals.gpio_port[Pin::P1_10],
-            // 9 => &nrf5340_peripherals.gpio_port[Pin::P1_11],
-            // 10 => &nrf5340_peripherals.gpio_port[Pin::P1_12],
-            // 11 => &nrf5340_peripherals.gpio_port[Pin::P1_13],
-            // 12 => &nrf5340_peripherals.gpio_port[Pin::P1_14],
-            // 13 => &nrf5340_peripherals.gpio_port[Pin::P1_15],
-        ),
-    )
-    .finalize(components::gpio_component_static!(nrf5340::gpio::GPIOPin));
+    // let gpio = components::gpio::GpioComponent::new(
+    //     board_kernel,
+    //     capsules_core::gpio::DRIVER_NUM,
+    //     components::gpio_component_helper!(
+    //         nrf5340::gpio::GPIOPin,
+    //         0 => &nrf5340_peripherals.gpio_port[CAP_TOUCH1_PIN],
+    //         // 1 => &nrf5340_peripherals.gpio_port[Pin::P1_02],
+    //         // 2 => &nrf5340_peripherals.gpio_port[Pin::P1_03],
+    //         // 3 => &nrf5340_peripherals.gpio_port[Pin::P1_04],
+    //         // 4 => &nrf5340_peripherals.gpio_port[Pin::P1_05],
+    //         // 5 => &nrf5340_peripherals.gpio_port[Pin::P1_06],
+    //         // 6 => &nrf5340_peripherals.gpio_port[Pin::P1_07],
+    //         // 7 => &nrf5340_peripherals.gpio_port[Pin::P1_08],
+    //         // Avoid exposing the I2C pins to userspace, as these are used in
+    //         // some tutorials (e.g., `nrf5340dk-thread-tutorial`).
+    //         //
+    //         // In the future we might want to make this configurable.
+    //         //
+    //         // 8 => &nrf5340_peripherals.gpio_port[Pin::P1_10],
+    //         // 9 => &nrf5340_peripherals.gpio_port[Pin::P1_11],
+    //         // 10 => &nrf5340_peripherals.gpio_port[Pin::P1_12],
+    //         // 11 => &nrf5340_peripherals.gpio_port[Pin::P1_13],
+    //         // 12 => &nrf5340_peripherals.gpio_port[Pin::P1_14],
+    //         // 13 => &nrf5340_peripherals.gpio_port[Pin::P1_15],
+    //     ),
+    // )
+    // .finalize(components::gpio_component_static!(nrf5340::gpio::GPIOPin));
 
     //--------------------------------------------------------------------------
     // BUTTONS
     //--------------------------------------------------------------------------
-
-    let button = components::button::ButtonComponent::new(
-        board_kernel,
-        capsules_core::button::DRIVER_NUM,
-        components::button_component_helper!(
-            nrf5340::gpio::GPIOPin,
-            (
-                &nrf5340_peripherals.gpio_port[BUTTON1_PIN],
-                kernel::hil::gpio::ActivationMode::ActiveLow,
-                kernel::hil::gpio::FloatingState::PullUp
-            ),
-            (
-                &nrf5340_peripherals.gpio_port[BUTTON2_PIN],
-                kernel::hil::gpio::ActivationMode::ActiveLow,
-                kernel::hil::gpio::FloatingState::PullUp
-            ),
-            (
-                &nrf5340_peripherals.gpio_port[BUTTON3_PIN],
-                kernel::hil::gpio::ActivationMode::ActiveLow,
-                kernel::hil::gpio::FloatingState::PullUp
-            ),
-            (
-                &nrf5340_peripherals.gpio_port[BUTTON4_PIN],
-                kernel::hil::gpio::ActivationMode::ActiveLow,
-                kernel::hil::gpio::FloatingState::PullUp
-            )
-        ),
-    )
-    .finalize(components::button_component_static!(nrf5340::gpio::GPIOPin));
+    // let button = components::button::ButtonComponent::new(
+    //     board_kernel,
+    //     capsules_core::button::DRIVER_NUM,
+    //     components::button_component_helper!(
+    //         nrf5340::gpio::GPIOPin,
+    //         (
+    //             &nrf5340_peripherals.gpio_port[BUTTON1_PIN],
+    //             kernel::hil::gpio::ActivationMode::ActiveLow,
+    //             kernel::hil::gpio::FloatingState::PullUp
+    //         ),
+    //         // (
+    //         //     &nrf5340_peripherals.gpio_port[BUTTON2_PIN],
+    //         //     kernel::hil::gpio::ActivationMode::ActiveLow,
+    //         //     kernel::hil::gpio::FloatingState::PullUp
+    //         // ),
+    //         // (
+    //         //     &nrf5340_peripherals.gpio_port[BUTTON3_PIN],
+    //         //     kernel::hil::gpio::ActivationMode::ActiveLow,
+    //         //     kernel::hil::gpio::FloatingState::PullUp
+    //         // ),
+    //         // (
+    //         //     &nrf5340_peripherals.gpio_port[BUTTON4_PIN],
+    //         //     kernel::hil::gpio::ActivationMode::ActiveLow,
+    //         //     kernel::hil::gpio::FloatingState::PullUp
+    //         // )
+    //     ),
+    // )
+    // .finalize(components::button_component_static!(nrf5340::gpio::GPIOPin));
 
     //--------------------------------------------------------------------------
     // LEDs
@@ -558,10 +647,13 @@ pub unsafe fn start() -> (
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, nrf5340::gpio::GPIOPin>,
-        LedLow::new(&nrf5340_peripherals.gpio_port[LED1_PIN]),
-        LedLow::new(&nrf5340_peripherals.gpio_port[LED2_PIN]),
-        LedLow::new(&nrf5340_peripherals.gpio_port[LED3_PIN]),
-        LedLow::new(&nrf5340_peripherals.gpio_port[LED4_PIN]),
+        // LedLow::new(&nrf5340_peripherals.gpio_port[LED1_PIN]),
+        // LedLow::new(&nrf5340_peripherals.gpio_port[LED2_PIN]),
+        // LedLow::new(&nrf5340_peripherals.gpio_port[LED3_PIN]),
+        // LedLow::new(&nrf5340_peripherals.gpio_port[LED4_PIN]),
+        LedLow::new(&nrf5340_peripherals.gpio_port[LEDR_PIN]),
+        LedLow::new(&nrf5340_peripherals.gpio_port[LEDG_PIN]),
+        LedLow::new(&nrf5340_peripherals.gpio_port[LEDB_PIN]),
     ));
 
     //--------------------------------------------------------------------------
@@ -586,7 +678,7 @@ pub unsafe fn start() -> (
     let uart_channel = nrf53_components::UartChannelComponent::new(
         uart_channel,
         mux_alarm,
-        &base_peripherals.uarte0,
+        &base_peripherals.uarte1,
     )
     .finalize(nrf53_components::uart_channel_component_static!(
         nrf5340::rtc::Rtc
@@ -630,40 +722,29 @@ pub unsafe fn start() -> (
     // BLE
     //--------------------------------------------------------------------------
 
-    let ble_radio = components::ble::BLEComponent::new(
-        board_kernel,
-        capsules_extra::ble_advertising_driver::DRIVER_NUM,
-        &base_peripherals.ble_radio,
-        mux_alarm,
-    )
-    .finalize(components::ble_component_static!(
-        nrf5340::rtc::Rtc,
-        nrf5340::ble_radio::Radio
-    ));
+    // let ble_radio = components::ble::BLEComponent::new(
+    //     board_kernel,
+    //     capsules_extra::ble_advertising_driver::DRIVER_NUM,
+    //     &base_peripherals.ble_radio,
+    //     mux_alarm,
+    // )
+    // .finalize(components::ble_component_static!(
+    //     nrf5340::rtc::Rtc,
+    //     nrf5340::ble_radio::Radio
+    // ));
 
     //--------------------------------------------------------------------------
     // TEMPERATURE (internal)
     //--------------------------------------------------------------------------
 
-    let temp = components::temperature::TemperatureComponent::new(
-        board_kernel,
-        capsules_extra::temperature::DRIVER_NUM,
-        &base_peripherals.temp,
-    )
-    .finalize(components::temperature_component_static!(
-        nrf5340::temperature::Temp
-    ));
-
-    //--------------------------------------------------------------------------
-    // RANDOM NUMBER GENERATOR
-    //--------------------------------------------------------------------------
-
-    let rng = components::rng::RngComponent::new(
-        board_kernel,
-        capsules_core::rng::DRIVER_NUM,
-        &base_peripherals.trng,
-    )
-    .finalize(components::rng_component_static!(nrf5340::trng::Trng));
+    // let temp = components::temperature::TemperatureComponent::new(
+    //     board_kernel,
+    //     capsules_extra::temperature::DRIVER_NUM,
+    //     &base_peripherals.temp,
+    // )
+    // .finalize(components::temperature_component_static!(
+    //     nrf5340::temperature::Temp
+    // ));
 
     //--------------------------------------------------------------------------
     // ADC
@@ -691,11 +772,149 @@ pub unsafe fn start() -> (
     // ));
 
     //--------------------------------------------------------------------------
+    // CAPACITIVE TOUCH SENSORS
+    //--------------------------------------------------------------------------
+
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
+    // Create a grant with minimal boilerplate
+    let nvmc_grant = board_kernel.create_grant(nvmc::DRIVER_NUM, &grant_cap);
+    let nvmc_deferred_call = static_init!(
+        kernel::deferred_call::DeferredCall,
+        kernel::deferred_call::DeferredCall::new()
+    );
+
+    // Create the NVMC syscall driver using the existing deferred call
+    let nvmc = static_init!(
+        nrf5340::nvmc::SyscallDriver,
+        nrf5340::nvmc::SyscallDriver::new(
+            &base_peripherals.nvmc,
+            nvmc_grant,
+            nvmc_deferred_call,
+            &mut APP_FLASH_BUFFER
+        )
+    );
+
+    // Register the driver
+    kernel::deferred_call::DeferredCallClient::register(nvmc);
+
+    let cap_touch_alarm1 = static_init!(
+        VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    cap_touch_alarm1.setup();
+
+    let cap_touch_alarm2 = static_init!(
+        VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    cap_touch_alarm2.setup();
+
+    // Create capacitive touch sensor 1
+    let cap_touch1 = static_init!(
+        capsules_core::capacitive_touch::CapacitiveTouchSensor<
+            'static,
+            VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
+        >,
+        capsules_core::capacitive_touch::CapacitiveTouchSensor::new(
+            &nrf5340_peripherals.gpio_port[CAP_TOUCH1_PIN],
+            cap_touch_alarm1,
+            THRESHOLD.into(),                   // Threshold: 20
+            cap_touch_alarm1.ticks_from_ms(10), // Scan interval: 100ms
+        )
+    );
+    cap_touch1.set_pin_id(0);
+    cap_touch_alarm1.set_alarm_client(cap_touch1);
+
+    let cap_touch2 = static_init!(
+        capsules_core::capacitive_touch::CapacitiveTouchSensor<
+            'static,
+            VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
+        >,
+        capsules_core::capacitive_touch::CapacitiveTouchSensor::new(
+            &nrf5340_peripherals.gpio_port[CAP_TOUCH2_PIN],
+            cap_touch_alarm2,
+            THRESHOLD.into(),                   // Threshold: 20
+            cap_touch_alarm2.ticks_from_ms(10), // Scan interval: 100ms
+        )
+    );
+    cap_touch_alarm2.set_alarm_client(cap_touch2);
+    cap_touch2.set_pin_id(1);
+
+    cap_touch1.register();
+    cap_touch2.register();
+
+    let cap_touch_wrapper = button_component_helper!(
+        capsules_core::capacitive_touch::CapacitiveTouchSensor<
+            'static,
+            VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
+        >,
+        (
+            cap_touch1,
+            gpio::ActivationMode::ActiveHigh,
+            gpio::FloatingState::PullNone
+        ),
+        (
+            cap_touch2,
+            gpio::ActivationMode::ActiveHigh,
+            gpio::FloatingState::PullNone
+        )
+    );
+
+    let cap_touch_button = static_init!(
+        capsules_core::button::Button<
+            'static,
+            capsules_core::capacitive_touch::CapacitiveTouchSensor<
+                'static,
+                VirtualMuxAlarm<'static, nrf5340::rtc::Rtc>,
+            >,
+        >,
+        capsules_core::button::Button::new(
+            cap_touch_wrapper,
+            board_kernel.create_grant(capsules_core::button::DRIVER_NUM, &grant_cap)
+        )
+    );
+
+    // Set the button capsule as the client for the capacitive touch sensor
+    cap_touch1.set_client(cap_touch_button);
+    cap_touch2.set_client(cap_touch_button);
+
+    // Register capacitive touch sensors with the deferred call system
+
+    //--------------------------------------------------------------------------
+    // RANDOM NUMBER GENERATOR
+    //--------------------------------------------------------------------------
+
+    let adc_entropy_channel = static_init!(
+        nrf5340::adc::AdcChannelSetup,
+        nrf5340::adc::AdcChannelSetup::new(nrf5340::adc::AdcChannel::AnalogInput0),
+    );
+
+    // Initialize adc_entropy with the ADC hardware directly
+    let adc_entropy = static_init!(
+        adc_entropy::AdcEntropy<'static, nrf5340::adc::Adc>,
+        adc_entropy::AdcEntropy::new(&base_peripherals.adc, adc_entropy_channel)
+    );
+
+    // Set the ADC client to adc_entropy
+    base_peripherals.adc.set_client(adc_entropy);
+
+    // Use adc_entropy as the entropy source for RNG
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules_core::rng::DRIVER_NUM,
+        adc_entropy,
+    )
+    .finalize(components::rng_component_static!(
+        adc_entropy::AdcEntropy<'static, nrf5340::adc::Adc>
+    ));
+
+    //--------------------------------------------------------------------------
     // SPI
     //--------------------------------------------------------------------------
 
-    // let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
-    //     .finalize(components::spi_mux_component_static!(nrf5340::spi::SPIM));
+    let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
+        .finalize(components::spi_mux_component_static!(nrf5340::spi::SPIM));
 
     // // Create the SPI system call capsule.
     // let spi_controller = components::spi::SpiSyscallComponent::new(
@@ -710,58 +929,43 @@ pub unsafe fn start() -> (
     //     nrf5340::spi::SPIM
     // ));
 
-    // // base_peripherals.spim0.configure(
-    // //     nrf5340::pinmux::Pinmux::new(SPI_MOSI as u32),
-    // //     nrf5340::pinmux::Pinmux::new(SPI_MISO as u32),
-    // //     nrf5340::pinmux::Pinmux::new(SPI_CLK as u32),
-    // // );
+    // base_peripherals.spim0.configure(
+    //     nrf5340::pinmux::Pinmux::new(SPI_MOSI as u32),
+    //     nrf5340::pinmux::Pinmux::new(SPI_MISO as u32),
+    //     nrf5340::pinmux::Pinmux::new(SPI_CLK as u32),
+    // );
 
     //--------------------------------------------------------------------------
-    // ONBOARD EXTERNAL FLASH
+    // INTERNAL FLASH FOR TICKV
     //--------------------------------------------------------------------------
 
-    // let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
-    //     Some(&gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN]),
-    //     Some(&gpio_port[SPI_MX25R6435F_HOLD_PIN]),
-    //     &gpio_port[SPI_MX25R6435F_CHIP_SELECT],
-    //     mux_alarm,
-    //     mux_spi,
-    // )
-    // .finalize(components::mx25r6435f_component_static!(
-    //     nrf5340::spi::SPIM,
-    //     nrf5340::gpio::GPIOPin,
-    //     nrf5340::rtc::Rtc
-    // ));
-
-    //--------------------------------------------------------------------------
-    // TICKV
-    //--------------------------------------------------------------------------
-
-    // // Static buffer to use when reading/writing flash for TicKV.
+    // Static buffer to use when reading/writing flash for TicKV.
     // let page_buffer = static_init!(
-    //     <Mx25r6435f as kernel::hil::flash::Flash>::Page,
-    //     <Mx25r6435f as kernel::hil::flash::Flash>::Page::default()
+    //     <InternalFlash as kernel::hil::flash::Flash>::Page,
+    //     <InternalFlash as kernel::hil::flash::Flash>::Page::default()
     // );
 
     // // SipHash for creating TicKV hashed keys.
     // let sip_hash = components::siphash::Siphasher24Component::new()
     //     .finalize(components::siphasher24_component_static!());
 
-    // // TicKV with Tock wrapper/interface.
+    // // TicKV with Tock wrapper/interface using internal flash.
+    // // We'll use the last 128KB (32 pages * 4KB per page) of internal flash for TicKV storage.
+    // // nRF5340 has 1MB of flash, so we start at page 224 (896KB offset) to avoid kernel/app space.
     // let tickv = components::tickv::TicKVDedicatedFlashComponent::new(
     //     sip_hash,
-    //     mx25r6435f,
-    //     0, // start at the beginning of the flash chip
-    //     (capsules_extra::mx25r6435f::SECTOR_SIZE as usize) * 32, // arbitrary size of 32 pages
+    //     &base_peripherals.nvmc,
+    //     224,       // start at page 224 (896KB offset) to avoid kernel/app space
+    //     32 * 4096, // 32 pages * 4KB per page = 128KB for TicKV storage
     //     page_buffer,
     // )
     // .finalize(components::tickv_dedicated_flash_component_static!(
-    //     Mx25r6435f,
+    //     InternalFlash,
     //     Siphasher24,
     //     TICKV_PAGE_SIZE,
     // ));
 
-    // // KVSystem interface to KV (built on TicKV).
+    // KVSystem interface to KV (built on TicKV).
     // let tickv_kv_store = components::kv::TicKVKVStoreComponent::new(tickv).finalize(
     //     components::tickv_kv_store_component_static!(
     //         TicKVDedicatedFlash,
@@ -779,7 +983,7 @@ pub unsafe fn start() -> (
     //     components::kv_permissions_mux_component_static!(KVStorePermissions),
     // );
 
-    // // Create a virtual component for the userspace driver.
+    // // // Create a virtual component for the userspace driver.
     // let virtual_kv_driver = components::kv::VirtualKVPermissionsComponent::new(mux_kv).finalize(
     //     components::virtual_kv_permissions_component_static!(KVStorePermissions),
     // );
@@ -843,6 +1047,21 @@ pub unsafe fn start() -> (
     //--------------------------------------------------------------------------
     // Uncomment to experiment with this.
 
+    // let usb = components::usb_ctap::UsbCtapComponent::new(
+    // let usb = capsules_extra::usb_ctap::UsbCtapComponent::new(
+    let usb = components::usb_ctap::UsbCtapComponent::new(
+        board_kernel,
+        // capsules::usb::usb_ctap::DRIVER_NUM,
+        usb_ctap::DRIVER_NUM,
+        &nrf5340_peripherals.usbd,
+        // capsules_extra::usb::usbc_client::MAX_CTRL_PACKET_SIZE_NRF5340,
+        capsules_extra::usb::usbc_client::MAX_CTRL_PACKET_SIZE_NRF52840,
+        VENDOR_ID,
+        PRODUCT_ID,
+        STRINGS,
+    )
+    .finalize(components::usb_ctap_component_helper!(nrf5340::usbd::Usbd));
+
     // // Create the strings we include in the USB descriptor.
     // let strings = static_init!(
     //     [&str; 3],
@@ -893,13 +1112,13 @@ pub unsafe fn start() -> (
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
-        // button,
+        // button: button,
         // ble_radio,
         pconsole,
         console,
         led,
-        gpio,
-        // rng,
+        // gpio,
+        rng,
         // adc,
         // temp,
         alarm,
@@ -912,8 +1131,11 @@ pub unsafe fn start() -> (
         // i2c_master_slave,
         // spi_controller,
         // kv_driver,
+        nvmc: nvmc,
+        usb,
         scheduler,
         systick: cortexm33::systick::SysTick::new_with_calibration(64000000),
+        capacitive_touch: cap_touch_button,
     };
 
     // let _ = platform.pconsole.start();
